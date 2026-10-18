@@ -40,7 +40,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
   } catch {
     throw new ApiError(0, "مش قادرين نوصل للسيرفر. اتأكد إن الـ API شغال.");
   }
-  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
+  if (res.status === 401 && typeof window !== "undefined" && path !== "/api/auth/login" && path !== "/api/auth/register") {
     setToken(null);
     window.location.href = "/login";
   }

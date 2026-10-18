@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
-import { api, getToken, setToken } from "@/lib/api";
+import { api, ApiError, getToken, setToken } from "@/lib/api";
 import type { Me } from "@/lib/types";
 
 const MeCtx = createContext<Me | null>(null);
@@ -14,17 +14,31 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [me, setMe] = useState<Me | null>(null);
   const [health, setHealth] = useState<{ ai: string; social: string } | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!getToken()) {
       router.replace("/login");
       return;
     }
-    api<Me>("/api/auth/me").then(setMe).catch(() => {});
+    api<Me>("/api/auth/me").then(setMe).catch((e: ApiError) => {
+      if (e.status === 401) {
+        setToken(null);
+        router.replace("/login");
+      } else setError(e.message);
+    });
     api("/api/health").then(setHealth).catch(() => {});
   }, [router]);
 
-  if (!me) return <div className="wrap"><p className="muted" style={{ padding: 24 }}>بنحمّل…</p></div>;
+  if (!me) {
+    return (
+      <div className="wrap" style={{ padding: 24 }}>
+        {error
+          ? <div className="empty"><p className="err">{error}</p><button className="btn" type="button" onClick={() => window.location.reload()}>جرّب تاني</button></div>
+          : <p className="muted">بنحمّل…</p>}
+      </div>
+    );
+  }
 
   const nav = [
     ["/brands", "البراندات"],
