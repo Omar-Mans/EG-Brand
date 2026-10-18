@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: egbrand
+      POSTGRES_PASSWORD: egbrand
+      POSTGRES_DB: egbrand
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egbrand"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://egbrand:egbrand@db:5432/egbrand
+      EMBEDDED_WORKER: "false"
+    volumes: [uploads:/app/uploads]
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://egbrand:egbrand@db:5432/egbrand
+    volumes: [uploads:/app/uploads]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  uploads:
