@@ -54,9 +54,10 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ### تشغيل الـ AI الحقيقي
 حط مفتاح واحد على الأقل في `backend/.env` (مثلاً `GROQ_API_KEY` أو `ANTHROPIC_API_KEY`)، وظبط الموديلات:
 ```
-LLM_FAST_MODELS=groq/qwen/qwen3-32b
-LLM_QUALITY_MODELS=anthropic/claude-sonnet-5-5,groq/qwen/qwen3-32b
+LLM_FAST_MODELS=groq/openai/gpt-oss-20b
+LLM_QUALITY_MODELS=groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b
 ```
+- Groq بيغيّر الموديلات المتاحة باستمرار. اعرف المتاح على حسابك من `https://api.groq.com/openai/v1/models`.
 - كل سلسلة بتتجرب بالترتيب: لو موديل وقع، الطلب بيروح للي بعده.
 - لو LiteLLM ما يعرفش سعر موديل، حط سعره في `LLM_PRICE_OVERRIDES`، وإلا التكلفة هتتسجل صفر.
 

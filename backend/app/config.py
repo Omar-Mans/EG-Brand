@@ -25,8 +25,8 @@ class Settings(BaseSettings):
 
     # AI
     ai_mode: str = "auto"  # auto | mock | live
-    llm_fast_models: str = "groq/qwen/qwen3-32b"
-    llm_quality_models: str = "anthropic/claude-sonnet-5-5,groq/qwen/qwen3-32b"
+    llm_fast_models: str = "groq/openai/gpt-oss-20b"
+    llm_quality_models: str = "groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b"
     llm_timeout_seconds: int = 120
     # Fallback prices when the gateway has no price for a model: "model=in_per_million:out_per_million;..."
     llm_price_overrides: str = ""
