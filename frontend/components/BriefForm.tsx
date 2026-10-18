@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { DIALECTS, MARKETS, PREF_COLORS, STYLES } from "@/lib/catalog";
+import { DEFAULT_TZ, DIALECTS, MARKETS, PREF_COLORS, STYLES, TIMEZONES } from "@/lib/catalog";
 import type { Brief } from "@/lib/types";
 
-export const EMPTY_BRIEF: Brief = { idea: "", name: "", market: "EG", dialect: "egyptian", styles: [], colors: [] };
+export const EMPTY_BRIEF: Brief = { idea: "", name: "", market: "EG", dialect: "egyptian", styles: [], colors: [], timezone: "Africa/Cairo" };
 
 export default function BriefForm({ initial, submitLabel, busy, onSubmit }: {
   initial: Brief; submitLabel: string; busy: boolean; onSubmit: (b: Brief) => void;
@@ -24,13 +24,18 @@ export default function BriefForm({ initial, submitLabel, busy, onSubmit }: {
           <input id="bname" type="text" value={b.name} maxLength={60} onChange={(e) => setB({ ...b, name: e.target.value })} placeholder="سيبه فاضي ونقترح 3 أسماء" />
         </label>
         <label className="f" htmlFor="market">السوق
-          <select id="market" value={b.market} onChange={(e) => setB({ ...b, market: e.target.value as Brief["market"], dialect: e.target.value === "SA" ? "saudi" : "egyptian" })}>
+          <select id="market" value={b.market} onChange={(e) => setB({ ...b, market: e.target.value as Brief["market"], dialect: e.target.value === "SA" ? "saudi" : "egyptian", timezone: DEFAULT_TZ[e.target.value] })}>
             {Object.entries(MARKETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </label>
         <label className="f" htmlFor="dialect">لهجة المحتوى
           <select id="dialect" value={b.dialect} onChange={(e) => setB({ ...b, dialect: e.target.value as Brief["dialect"] })}>
             {Object.entries(DIALECTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+        <label className="f" htmlFor="tz">المنطقة الزمنية للنشر
+          <select id="tz" value={b.timezone || DEFAULT_TZ[b.market]} onChange={(e) => setB({ ...b, timezone: e.target.value })}>
+            {Object.entries(TIMEZONES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
       </div>

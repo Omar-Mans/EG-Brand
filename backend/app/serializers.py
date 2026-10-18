@@ -14,6 +14,7 @@ def post_out(p: Post) -> dict:
     return {"id": p.id, "brand_id": p.brand_id, "month": p.month, "day": p.day, "time": p.time, "format": p.format,
             "pillar": p.pillar, "occasion": p.occasion, "headline": p.headline, "caption": p.caption,
             "hashtags": p.hashtags or [], "cta": p.cta, "template": p.template, "approved": p.approved,
+            "design": p.design or {}, "bg_url": p.bg_url, "metrics": p.metrics or {}, "metrics_at": iso(p.metrics_at),
             "image_url": p.image_url, "status": p.status, "scheduled_at": iso(p.scheduled_at),
             "platforms": p.platforms or [], "publish_results": p.publish_results or {}, "error": p.error}
 

@@ -90,3 +90,11 @@ td.num, th.num { text-align: end }
 .auth { max-width: 420px; margin: 64px auto 0 }
 details summary { cursor: pointer; color: var(--muted); font-size: 13px }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+.fbpost { background: #F0F2F5; color: #1C1E21; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; gap: 8px }
+.fbhead { display: flex; align-items: center; gap: 10px; padding: 12px 12px 0 }
+.fbhead .muted { color: #65676B }
+.fbav { width: 40px; height: 40px; border-radius: 50%; background: var(--gold); color: var(--gold-ink); display: grid; place-items: center; font-weight: 700; flex: none }
+.fbcap { padding: 0 12px; white-space: pre-wrap; font-size: 14px }
+.fbtags { padding: 0 12px; color: #385898; font-size: 14px }
+.agent { border-color: var(--gold) }
+.agent .quick { display: flex; flex-wrap: wrap; gap: 8px }

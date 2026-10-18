@@ -22,3 +22,9 @@ POST_FORMATS = ["post", "reel", "story"]
 AD_OBJECTIVES = ["وعي بالبراند", "زيارات للمتجر أو الموقع", "رسائل واتساب", "مبيعات"]
 AD_PLATFORMS = ["Instagram + Facebook", "TikTok", "Snapchat", "Google"]
 MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+
+# Post design layouts drawn by frontend/lib/render.ts. Photo layouts need a background image.
+LAYOUTS = ["photo_overlay", "photo_split", "bold", "offer", "minimal", "quote"]
+PHOTO_LAYOUTS = {"photo_overlay", "photo_split"}
+TIMEZONES = {"Asia/Riyadh": "توقيت السعودية", "Africa/Cairo": "توقيت مصر", "Asia/Dubai": "توقيت الإمارات"}
+DEFAULT_TZ = {"SA": "Asia/Riyadh", "EG": "Africa/Cairo"}

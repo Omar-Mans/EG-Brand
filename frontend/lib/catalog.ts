@@ -43,5 +43,13 @@ export const PLATFORMS = [
 ];
 export const AD_OBJECTIVES = ["وعي بالبراند", "زيارات للمتجر أو الموقع", "رسائل واتساب", "مبيعات"];
 export const AD_PLATFORMS = ["Instagram + Facebook", "TikTok", "Snapchat", "Google"];
-export const FEATURE_LABEL: Record<string, string> = { dna: "هوية البراند", calendar: "خطة المحتوى", regen: "إعادة صياغة بوست", ads: "خطة إعلانية" };
+export const FEATURE_LABEL: Record<string, string> = {
+  dna: "هوية البراند", calendar: "خطة المحتوى", regen: "إعادة صياغة بوست", ads: "خطة إعلانية", agent: "أوامر الـ Agent", image: "صورة بالـ AI",
+};
+export const LAYOUTS: Record<string, string> = {
+  photo_overlay: "صورة كاملة", photo_split: "صورة + لون", bold: "عنوان جريء", offer: "عرض وخصم", minimal: "هادي وفخم", quote: "رأي عميل",
+};
+export const PHOTO_LAYOUTS = ["photo_overlay", "photo_split"];
+export const TIMEZONES: Record<string, string> = { "Asia/Riyadh": "توقيت السعودية", "Africa/Cairo": "توقيت مصر", "Asia/Dubai": "توقيت الإمارات" };
+export const DEFAULT_TZ: Record<string, string> = { SA: "Asia/Riyadh", EG: "Africa/Cairo" };
 export const STATUS_LABEL: Record<string, string> = { draft: "مش مجدول", scheduled: "مجدول", publishing: "بيتنشر", published: "اتنشر", failed: "فشل" };

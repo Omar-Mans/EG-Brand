@@ -41,6 +41,7 @@ def calendar(days_in_month: int, occasions: list[dict], count: int = 12) -> list
         "headline": ["صباحك نور", "من الفكرة للفنجان", "جديدنا وصل", "وين تقعد اليوم؟"][i % 4],
         "caption": "سطر أول قصير يشد الانتباه.\nسطر تاني فيه التفاصيل والدعوة.",
         "hashtags": ["#براند", "#عروض", "#جديد"], "cta": "زورونا اليوم",
+        **_design(i),
     } for i in range(count)]
     for occ in occasions:  # move the nearest free post onto each occasion
         free = [p for p in posts if not p["occasion"]]
@@ -64,3 +65,21 @@ def ads_plan(platforms: list[str]) -> dict:
         "kpis": ["تكلفة النتيجة", "نسبة النقر", "عدد الرسائل"],
         "tips": ["ابدأ بميزانية صغيرة واختبر", "غيّر التصميم كل أسبوع", "رد على الرسائل بسرعة"],
     }
+
+
+def _design(i: int) -> dict:
+    layouts = ["photo_overlay", "bold", "photo_split", "offer", "minimal", "quote"]
+    layout = layouts[i % len(layouts)]
+    return {"subheadline": "سطر قصير بيوضح الفايدة", "badge": "خصم 20%" if layout == "offer" else "",
+            "layout": layout, "visual_prompt": "modern showroom with soft daylight, wide angle, clean background"}
+
+
+def posts_for_dates(dates: list[str]) -> list[dict]:
+    return [{"date": d, "time": "21:00", "format": "post", "pillar": "المنتج", "occasion": "",
+             "headline": ["عرض الأسبوع", "جديدنا وصل", "ليه تختارنا؟"][i % 3], "caption": "سطر أول.\nسطر تاني.",
+             "hashtags": ["#براند"], "cta": "تواصل معانا", **_design(i)} for i, d in enumerate(dates)]
+
+
+def agent_plan(today: str, connected: list[str], best_time: str) -> dict:
+    return {"intent": "create_and_schedule", "count": 7, "start_date": today, "every_days": 1, "time": best_time,
+            "platforms": connected, "topic": "", "reply": "هجهز 7 بوستات، بوست كل يوم."}

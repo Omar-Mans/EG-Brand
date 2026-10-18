@@ -21,11 +21,38 @@ class MockConnectIn(BaseModel):
     platform: str
 
 
+class TokenIn(BaseModel):
+    token: str
+
+
+def save_meta_assets(db: Session, company_id: str, token: str, assets: dict) -> list[SocialAccount]:
+    """One connection per platform per company in the MVP: the first page with Instagram wins."""
+    pages = sorted(assets["pages"], key=lambda p: 0 if p.get("instagram_business_account") else 1)
+    db.execute(delete(SocialAccount).where(SocialAccount.company_id == company_id,
+                                           SocialAccount.platform.in_(["facebook", "instagram", "meta_ads"])))
+    saved = []
+    if pages:
+        page = pages[0]
+        saved.append(SocialAccount(company_id=company_id, provider="meta", platform="facebook", external_id=page["id"],
+                                   name=page.get("name", ""), access_token_enc=encrypt(page["access_token"])))
+        ig = page.get("instagram_business_account")
+        if ig:
+            saved.append(SocialAccount(company_id=company_id, provider="meta", platform="instagram", external_id=ig["id"],
+                                       name=ig.get("username", ""), access_token_enc=encrypt(page["access_token"])))
+    if assets.get("ad_accounts"):
+        ad = assets["ad_accounts"][0]
+        saved.append(SocialAccount(company_id=company_id, provider="meta", platform="meta_ads", external_id=ad["id"],
+                                   name=ad.get("name", ""), access_token_enc=encrypt(token), extra={"currency": ad.get("currency")}))
+    db.add_all(saved)
+    db.commit()
+    return saved
+
+
 @router.get("/status")
 def status():
     s = get_settings()
     return {"live": s.social_live, "meta_configured": bool(s.meta_app_id and s.meta_app_secret),
-            "platforms": PLATFORMS, "live_platforms": sorted(["facebook", "instagram"])}
+            "platforms": PLATFORMS, "live_platforms": sorted(["facebook", "instagram"]), "token_connect": True}
 
 
 @router.get("/accounts")
@@ -82,21 +109,22 @@ def meta_callback(code: str = "", state: str = "", error: str = "", db: Session 
         assets = meta.list_assets(token)
     except meta.MetaError as exc:
         return RedirectResponse(f"{front}/settings?meta=error&reason={str(exc)[:120]}")
-    # One connection per platform per company in the MVP: the first page with Instagram wins.
-    pages = sorted(assets["pages"], key=lambda p: 0 if p.get("instagram_business_account") else 1)
-    db.execute(delete(SocialAccount).where(SocialAccount.company_id == company_id,
-                                           SocialAccount.platform.in_(["facebook", "instagram", "meta_ads"])))
-    if pages:
-        page = pages[0]
-        db.add(SocialAccount(company_id=company_id, provider="meta", platform="facebook", external_id=page["id"],
-                             name=page.get("name", ""), access_token_enc=encrypt(page["access_token"])))
-        ig = page.get("instagram_business_account")
-        if ig:
-            db.add(SocialAccount(company_id=company_id, provider="meta", platform="instagram", external_id=ig["id"],
-                                 name=ig.get("username", ""), access_token_enc=encrypt(page["access_token"])))
-    if assets["ad_accounts"]:
-        ad = assets["ad_accounts"][0]
-        db.add(SocialAccount(company_id=company_id, provider="meta", platform="meta_ads", external_id=ad["id"],
-                             name=ad.get("name", ""), access_token_enc=encrypt(token), extra={"currency": ad.get("currency")}))
-    db.commit()
+    save_meta_assets(db, company_id, token, assets)
     return RedirectResponse(f"{front}/settings?meta=connected")
+
+
+@router.post("/meta/token")
+def meta_token(body: TokenIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Connect with a token pasted by the owner (Graph API Explorer). Works while the Meta app is in
+    Development mode for pages whose admins have a role on the app."""
+    token = body.token.strip()
+    if len(token) < 20:
+        raise HTTPException(422, "التوكن قصير، اتأكد إنك نسخته كامل")
+    try:
+        long_token, assets = meta.assets_from_token(token)
+    except meta.MetaError as exc:
+        raise HTTPException(400, f"Meta رفضت التوكن: {exc}")
+    if not assets["pages"]:
+        raise HTTPException(400, "التوكن مش شايف أي صفحة. اتأكد من صلاحية pages_show_list وإنك أدمن على الصفحة")
+    saved = save_meta_assets(db, user.company_id, long_token, assets)
+    return [account_out(a) for a in saved]

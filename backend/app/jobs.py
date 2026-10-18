@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .ai import services
+from .ai import images, services
 from .ai.llm import AIError
 from .db import SessionLocal, is_postgres
 from .models import Brand, Job, Post
@@ -43,6 +43,34 @@ def run_job(db: Session, job: Job) -> dict:
             raise AIError("not_found", "البوست مش موجود")
         services.rewrite_post(db, _brand(db, job), post, p.get("instruction", ""))
         return {"post_id": post.id}
+    if job.kind == "agent":
+        return services.run_agent(db, _brand(db, job), p.get("command", ""))
+    if job.kind == "images":
+        brand = _brand(db, job)
+        q = select(Post).where(Post.brand_id == brand.id, Post.status == "draft")
+        if p.get("month"):
+            q = q.where(Post.month == p["month"])
+        if p.get("post_ids"):
+            q = q.where(Post.id.in_(p["post_ids"]))
+        done, failed = [], 0
+        for post in db.scalars(q.order_by(Post.day)).all()[:20]:
+            if post.bg_url and not p.get("replace"):
+                continue
+            try:
+                images.generate_background(db, brand, post)
+                done.append(post.id)
+            except AIError as exc:
+                if exc.code == "budget_exceeded":
+                    raise
+                failed += 1
+        if failed and not done:
+            raise AIError("image_failed", "مزود الصور مش متاح دلوقتي")
+        return {"post_ids": done, "failed": failed}
+    if job.kind == "background":
+        post = db.get(Post, p["post_id"])
+        if not post or post.company_id != job.company_id:
+            raise AIError("not_found", "البوست مش موجود")
+        return {"post_id": post.id, "bg_url": images.generate_background(db, _brand(db, job), post, p.get("prompt", ""))}
     if job.kind == "ads":
         return {"plan": services.plan_ads(db, _brand(db, job), p["objective"], float(p["budget"]), int(p["days"]), p.get("platforms", []))}
     raise AIError("unknown_job", f"نوع مهمة غير معروف: {job.kind}")

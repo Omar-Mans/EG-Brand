@@ -113,54 +113,212 @@ export async function drawLogo(cv: HTMLCanvasElement, dna: Dna, variant: number)
   }
 }
 
-export async function drawPost(cv: HTMLCanvasElement, dna: Dna, post: Pick<Post, "format" | "template" | "headline" | "cta" | "occasion">) {
-  const W = 1080, H = post.format === "post" ? 1080 : 1920;
+type PostLike = Pick<Post, "format" | "headline" | "cta" | "occasion"> & { design?: Post["design"]; bg_url?: string | null };
+
+const imgCache: Record<string, Promise<HTMLImageElement | null>> = {};
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  if (!imgCache[url]) {
+    imgCache[url] = new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous"; // keeps the canvas exportable
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+  return imgCache[url];
+}
+
+function rgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const s = Math.max(w / img.width, h / img.height);
+  const iw = img.width * s, ih = img.height * s;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+  ctx.restore();
+}
+
+/** Headline + subheadline + CTA as one block. Returns the block height; draws when `draw` is true. */
+function textBlock(ctx: CanvasRenderingContext2D, o: {
+  x: number; y: number; w: number; align: CanvasTextAlign; head: string; sub?: string; cta?: string;
+  headFam: string; headMax: number; headLines?: number; fg: string; subFg: string; ctaBg?: string; ctaFg?: string;
+  ctaOutline?: boolean; draw: boolean;
+}) {
+  let size = o.headMax, lines: string[] = [];
+  for (;;) {
+    setFont(ctx, 700, size, o.headFam);
+    lines = wrap(ctx, o.head, o.w);
+    if (lines.length <= (o.headLines || 3) || size <= 48) break;
+    size -= 4;
+  }
+  const lh = size * 1.22;
+  const subSize = Math.round(Math.max(30, size * 0.38));
+  setFont(ctx, 500, subSize, "IBM Plex Sans Arabic");
+  const subLines = o.sub ? wrap(ctx, o.sub, o.w).slice(0, 2) : [];
+  const subLh = subSize * 1.45;
+  const ctaH = o.cta ? 84 : 0;
+  const gap1 = subLines.length ? size * 0.28 : 0, gap2 = o.cta ? size * 0.42 : 0;
+  const total = lines.length * lh + gap1 + subLines.length * subLh + gap2 + ctaH;
+  if (!o.draw) return total;
+  ctx.textAlign = o.align;
+  ctx.textBaseline = "middle";
+  let y = o.y + lh / 2;
+  const ax = o.align === "center" ? o.x + o.w / 2 : o.align === "right" ? o.x + o.w : o.x;
+  setFont(ctx, 700, size, o.headFam);
+  ctx.fillStyle = o.fg;
+  lines.forEach((l) => { ctx.fillText(l, ax, y); y += lh; });
+  y += gap1 - lh / 2 + subLh / 2;
+  setFont(ctx, 500, subSize, "IBM Plex Sans Arabic");
+  ctx.fillStyle = o.subFg;
+  subLines.forEach((l) => { ctx.fillText(l, ax, y); y += subLh; });
+  if (o.cta) {
+    y += gap2 - subLh / 2;
+    setFont(ctx, 700, 38, "IBM Plex Sans Arabic");
+    const tw = ctx.measureText(o.cta).width + 88;
+    const bx = o.align === "center" ? ax - tw / 2 : o.align === "right" ? ax - tw : ax;
+    rrect(ctx, bx, y, tw, ctaH, ctaH / 2);
+    if (o.ctaOutline) { ctx.strokeStyle = o.ctaBg || o.fg; ctx.lineWidth = 4; ctx.stroke(); }
+    else { ctx.fillStyle = o.ctaBg || o.fg; ctx.fill(); }
+    ctx.fillStyle = o.ctaFg || o.fg;
+    ctx.textAlign = "center";
+    ctx.fillText(o.cta, bx + tw / 2, y + ctaH / 2 + 2);
+  }
+  return total;
+}
+
+function brandMark(ctx: CanvasRenderingContext2D, dna: Dna, x: number, y: number, color: string, align: "right" | "center" = "right", size = 44) {
+  const n = nameOf(dna);
+  setFont(ctx, 700, size, dna.font_ar);
+  ctx.textBaseline = "middle";
+  const tw = ctx.measureText(n.ar).width;
+  const icon = size * 1.15, gap = 14;
+  const total = tw + gap + icon;
+  const right = align === "right" ? x : x + total / 2;
+  drawIcon(ctx, dna.icon, right - icon / 2, y, icon, color, 8);
+  ctx.fillStyle = color;
+  ctx.textAlign = "right";
+  ctx.fillText(n.ar, right - icon - gap, y + 2);
+}
+
+function badge(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bg: string, fg: string, size = 40) {
+  setFont(ctx, 800, size, "IBM Plex Sans Arabic");
+  const tw = ctx.measureText(text).width + size * 1.4, h = size * 1.9;
+  rrect(ctx, x, y, tw, h, h / 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + tw / 2, y + h / 2 + 2);
+}
+
+/** Draws a finished post design. Text is real Arabic type over an optional background photo. */
+export async function drawPost(cv: HTMLCanvasElement, dna: Dna, post: PostLike) {
+  const W = 1080, H = post.format === "post" ? 1080 : 1920, tall = H > W;
   cv.width = W;
   cv.height = H;
   const ctx = cv.getContext("2d")!;
-  const p = palette(dna), n = nameOf(dna);
-  await ensureFont(dna.font_ar, post.headline + n.ar);
+  const p = palette(dna);
+  const d = post.design || {};
+  await ensureFont(dna.font_ar, post.headline + nameOf(dna).ar);
+  await ensureFont("IBM Plex Sans Arabic", "نص عربي");
+  const img = post.bg_url ? await loadImage(post.bg_url) : null;
+  let layout = d.layout || "bold";
+  if ((layout === "photo_overlay" || layout === "photo_split") && !img) layout = "bold";
+  const M = 80, badgeText = d.badge || "", sub = d.subheadline || "";
   ctx.direction = "rtl";
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-  const tpl = post.template || 0, padX = 96;
-  const [bg, fg, sub] = tpl === 0 ? [p.primary, onColor(p.primary, p.dark, p.light), onColor(p.primary, p.dark, p.light)]
-    : tpl === 1 ? [p.dark, p.light, p.accent] : [p.light, p.dark, p.primary];
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  if (tpl === 0) { ctx.globalAlpha = 0.14; drawIcon(ctx, dna.icon, W * 0.22, H - W * 0.2, W * 0.62, fg, 5); ctx.globalAlpha = 1; }
-  if (tpl === 1) { ctx.fillStyle = p.light; ctx.fillRect(0, H * 0.7, W, H * 0.3); ctx.fillStyle = p.accent; ctx.fillRect(0, H * 0.7 - 10, W, 10); }
-  if (tpl === 2) { ctx.strokeStyle = p.primary; ctx.lineWidth = 14; rrect(ctx, 48, 48, W - 96, H - 96, 28); ctx.stroke(); drawIcon(ctx, dna.icon, W - 150, 150, 110, p.accent); }
-  if (post.occasion) {
-    setFont(ctx, 700, 40, dna.font_ar);
-    const tw = ctx.measureText(post.occasion).width + 64, top = tpl === 2 ? 230 : 96;
-    ctx.fillStyle = tpl === 0 ? fg : p.accent; rrect(ctx, W - padX - tw, top, tw, 74, 37); ctx.fill();
-    ctx.fillStyle = tpl === 0 ? bg : p.dark; ctx.fillText(post.occasion, W - padX - tw / 2, top + 38);
+
+  if (layout === "photo_overlay") {
+    drawCover(ctx, img!, 0, 0, W, H);
+    let g = ctx.createLinearGradient(0, H * 0.3, 0, H);
+    g.addColorStop(0, rgba(p.dark, 0));
+    g.addColorStop(0.55, rgba(p.dark, 0.72));
+    g.addColorStop(1, rgba(p.dark, 0.94));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    g = ctx.createLinearGradient(0, 0, 0, 240);
+    g.addColorStop(0, rgba(p.dark, 0.55)); g.addColorStop(1, rgba(p.dark, 0));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 240);
+    brandMark(ctx, dna, W - M, M + 10, p.light);
+    if (badgeText) badge(ctx, badgeText, M, M - 24, p.accent, onColor(p.accent, p.dark, p.light));
+    else if (post.occasion) badge(ctx, post.occasion, M, M - 24, rgba(p.light, 0.92), p.dark, 34);
+    const block = { x: M, w: W - 2 * M, align: "right" as CanvasTextAlign, head: post.headline, sub, cta: post.cta, headFam: dna.font_ar,
+      headMax: tall ? 120 : 96, fg: p.light, subFg: rgba(p.light, 0.86), ctaBg: p.accent, ctaFg: onColor(p.accent, p.dark, p.light) };
+    const h = textBlock(ctx, { ...block, y: 0, draw: false });
+    ctx.fillStyle = p.accent; ctx.fillRect(W - M - 90, H - M - h - 34, 90, 8);
+    textBlock(ctx, { ...block, y: H - M - h, draw: true });
+  } else if (layout === "photo_split") {
+    const ph = Math.round(H * (tall ? 0.58 : 0.56));
+    drawCover(ctx, img!, 0, 0, W, ph);
+    ctx.fillStyle = p.primary; ctx.fillRect(0, ph, W, H - ph);
+    ctx.fillStyle = p.accent; ctx.fillRect(0, ph, W, 10);
+    const fg = onColor(p.primary, p.dark, p.light);
+    rrect(ctx, W - M - 330, M - 24, 330, 84, 42); ctx.fillStyle = rgba(p.dark, 0.55); ctx.fill();
+    brandMark(ctx, dna, W - M - 28, M + 18, p.light, "right", 38);
+    if (badgeText) badge(ctx, badgeText, M, M - 24, p.accent, onColor(p.accent, p.dark, p.light));
+    const block = { x: M, w: W - 2 * M, align: "right" as CanvasTextAlign, head: post.headline, sub, cta: post.cta, headFam: dna.font_ar,
+      headMax: tall ? 104 : 80, headLines: 2, fg, subFg: rgba(fg === p.light ? p.light : p.dark, 0.82), ctaBg: p.dark, ctaFg: p.light };
+    const h = textBlock(ctx, { ...block, y: 0, draw: false });
+    textBlock(ctx, { ...block, y: ph + (H - ph - h) / 2 + 6, draw: true });
+  } else if (layout === "offer") {
+    ctx.fillStyle = p.dark; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = p.primary;
+    ctx.beginPath(); ctx.moveTo(W, 0); ctx.lineTo(W, H * 0.34); ctx.lineTo(W * 0.55, 0); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, H * 0.72); ctx.lineTo(W * 0.38, H); ctx.closePath(); ctx.fill();
+    const r = tall ? 250 : 190, cx = W / 2, cy = tall ? 560 : 330;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = p.accent; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, r - 18, 0, Math.PI * 2); ctx.strokeStyle = rgba(onColor(p.accent, p.dark, p.light), 0.35); ctx.lineWidth = 4; ctx.stroke();
+    const bt = badgeText || "عرض خاص";
+    ctx.fillStyle = onColor(p.accent, p.dark, p.light); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    fit(ctx, bt, 800, tall ? 118 : 92, dna.font_ar, r * 1.6, 40); ctx.fillText(bt, cx, cy + 4);
+    const block = { x: M, w: W - 2 * M, align: "center" as CanvasTextAlign, head: post.headline, sub, cta: post.cta, headFam: dna.font_ar,
+      headMax: tall ? 104 : 78, headLines: 2, fg: p.light, subFg: rgba(p.light, 0.8), ctaBg: p.accent, ctaFg: onColor(p.accent, p.dark, p.light) };
+    const top = cy + r + (tall ? 90 : 50);
+    textBlock(ctx, { ...block, y: top, draw: true });
+    brandMark(ctx, dna, W / 2, H - 70, p.light, "center", 36);
+  } else if (layout === "minimal") {
+    ctx.fillStyle = p.light; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = p.primary; ctx.lineWidth = 3; rrect(ctx, 44, 44, W - 88, H - 88, 8); ctx.stroke();
+    drawIcon(ctx, dna.icon, W / 2, tall ? 260 : 190, 90, p.primary, 6);
+    if (badgeText) { setFont(ctx, 700, 30, "IBM Plex Sans Arabic"); ctx.fillStyle = p.primary; ctx.textAlign = "center"; ctx.fillText(badgeText, W / 2, tall ? 360 : 268); }
+    const block = { x: M + 40, w: W - 2 * M - 80, align: "center" as CanvasTextAlign, head: post.headline, sub, cta: post.cta, headFam: dna.font_ar,
+      headMax: tall ? 110 : 86, fg: p.dark, subFg: rgba(p.dark, 0.66), ctaBg: p.primary, ctaFg: p.primary, ctaOutline: true };
+    const h = textBlock(ctx, { ...block, y: 0, draw: false });
+    textBlock(ctx, { ...block, y: (H - h) / 2 + 20, draw: true });
+    brandMark(ctx, dna, W / 2, H - 110, p.dark, "center", 34);
+  } else if (layout === "quote") {
+    ctx.fillStyle = p.light; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = rgba(p.primary, 0.08); ctx.fillRect(0, 0, W, H * 0.5);
+    setFont(ctx, 700, 420, "Amiri"); ctx.fillStyle = p.accent; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+    ctx.fillText("”", W - M + 20, tall ? 560 : 400);
+    const block = { x: M, w: W - 2 * M, align: "right" as CanvasTextAlign, head: post.headline, sub: sub || "من عملائنا", headFam: dna.font_ar,
+      headMax: tall ? 96 : 76, headLines: 4, fg: p.dark, subFg: p.primary };
+    const h = textBlock(ctx, { ...block, y: 0, draw: false });
+    textBlock(ctx, { ...block, y: (H - h) / 2 + (tall ? 80 : 50), draw: true });
+    for (let i = 0; i < 5; i++) drawIcon(ctx, "spark", W - M - 22 - i * 52, H - M - 150, 40, p.accent, 9);
+    brandMark(ctx, dna, W - M, H - M - 40, p.dark, "right", 36);
+  } else {
+    // bold
+    ctx.fillStyle = p.primary; ctx.fillRect(0, 0, W, H);
+    const fg = onColor(p.primary, p.dark, p.light);
+    ctx.globalAlpha = 0.12; drawIcon(ctx, dna.icon, W * 0.2, H - W * 0.2, W * 0.62, fg, 5); ctx.globalAlpha = 1;
+    ctx.fillStyle = p.accent === p.primary ? fg : p.accent;
+    ctx.beginPath(); ctx.moveTo(W, 0); ctx.lineTo(W, 150); ctx.lineTo(W - 150, 0); ctx.closePath(); ctx.fill();
+    brandMark(ctx, dna, W - M, M + 10, fg);
+    if (badgeText || post.occasion) badge(ctx, badgeText || post.occasion, M, M - 24, fg, p.primary, 36);
+    const block = { x: M, w: W - 2 * M, align: "right" as CanvasTextAlign, head: post.headline, sub, cta: post.cta, headFam: dna.font_ar,
+      headMax: tall ? 140 : 112, fg, subFg: rgba(fg === p.light ? p.light : p.dark, 0.85), ctaBg: fg, ctaFg: p.primary };
+    const h = textBlock(ctx, { ...block, y: 0, draw: false });
+    const y = (H - h) / 2 + 10;
+    ctx.fillStyle = p.accent === p.primary ? fg : p.accent; ctx.fillRect(W - M - 120, y - 36, 120, 10);
+    textBlock(ctx, { ...block, y, draw: true });
   }
-  const areaBottom = tpl === 1 ? H * 0.7 : H * 0.8;
-  let size = H > W ? 140 : 118, lines: string[];
-  for (;;) {
-    setFont(ctx, 700, size, dna.font_ar);
-    lines = wrap(ctx, post.headline, W - padX * 2);
-    if (lines.length <= 3 || size <= 56) break;
-    size -= 6;
-  }
-  const lh = size * 1.3;
-  let y = areaBottom / 2 - (lines.length * lh) / 2 + lh / 2;
-  ctx.fillStyle = fg;
-  lines.forEach((l) => { ctx.fillText(l, W / 2, y); y += lh; });
-  if (post.cta) {
-    setFont(ctx, 600, 42, "IBM Plex Sans Arabic");
-    if (tpl === 1) { ctx.fillStyle = p.dark; ctx.fillText(post.cta, W / 2, H * 0.79); }
-    else {
-      const tw = ctx.measureText(post.cta).width + 72, cy = y + 40;
-      ctx.strokeStyle = sub; ctx.lineWidth = 4; rrect(ctx, W / 2 - tw / 2, cy - 40, tw, 80, 40); ctx.stroke();
-      ctx.fillStyle = sub; ctx.fillText(post.cta, W / 2, cy);
-    }
-  }
-  const fy = H - (tpl === 2 ? 130 : 96), footFg = tpl === 1 ? p.dark : fg;
-  setFont(ctx, 700, 44, dna.font_ar); ctx.textAlign = "right"; ctx.fillStyle = footFg;
-  ctx.fillText(n.ar, W - padX - 70, fy);
-  drawIcon(ctx, dna.icon, W - padX - 26, fy, 52, footFg, 8);
 }
 
 export function canvasBlob(cv: HTMLCanvasElement): Promise<Blob> {

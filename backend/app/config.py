@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     llm_price_overrides: str = ""
     default_monthly_ai_budget_usd: float = 5.0
 
+    # Background photos for post designs: auto picks fal when FAL_KEY is set, else pollinations when AI is live, else mock
+    image_provider: str = "auto"  # auto | fal | pollinations | mock
+    fal_key: str = ""
+    fal_model: str = "fal-ai/flux/schnell"
+    image_cost_usd: float = 0.003  # per generated image, for the cost page
+
     # Storage for rendered images (must be publicly reachable for Instagram publishing)
     storage_backend: str = "local"  # local | s3
     upload_dir: str = "./uploads"
@@ -55,6 +61,14 @@ class Settings(BaseSettings):
         if self.ai_mode == "live":
             return True
         return any(os.environ.get(k) for k in AI_KEY_VARS)
+
+    @property
+    def image_backend(self) -> str:
+        if self.image_provider != "auto":
+            return self.image_provider
+        if self.fal_key:
+            return "fal"
+        return "pollinations" if self.ai_live else "mock"
 
     @property
     def social_live(self) -> bool:

@@ -61,7 +61,19 @@ LLM_QUALITY_MODELS=groq/openai/gpt-oss-120b,groq/qwen/qwen3.8-27b
 - كل سلسلة بتتجرب بالترتيب: لو موديل وقع، الطلب بيروح للي بعده.
 - لو LiteLLM ما يعرفش سعر موديل، حط سعره في `LLM_PRICE_OVERRIDES`، وإلا التكلفة هتتسجل صفر.
 
-### تشغيل النشر الحقيقي على Meta
+### صور الخلفية للتصميمات
+- **من غير أي إعداد:** لو الـ AI شغال، الصور بتتعمل من Pollinations. ده مجاني ومن غير مفتاح، ومناسب للتجربة بس.
+- **للإنتاج:** حط `FAL_KEY` من fal.ai، والصور هتتعمل بموديل FLUX schnell، ورخصته بتسمح بالاستخدام التجاري.
+- **أفضل حاجة للعميل:** يرفع صور منتجه الحقيقية من زرار "ارفع صورتك" في كل بوست.
+
+### ربط Meta بالتوكن (من غير مراجعة)
+تطبيق Meta وهو في Development mode بيشتغل لأي صفحة صاحبها ليه دور في التطبيق (Admin أو Developer أو Tester):
+1. ضيف حساب Facebook بتاع العميل كـ Tester من **App Roles** في تطبيق Meta.
+2. من [Graph API Explorer](https://developers.facebook.com/tools/explorer/) اختار التطبيق، وضيف الصلاحيات: `pages_show_list, pages_read_engagement, pages_manage_posts, instagram_basic, instagram_content_publish, business_management`.
+3. اضغط **Generate Access Token**، وبعدها الصق التوكن في المنصة من صفحة **الحسابات**، في جزء "اربط صفحتك بالتوكن".
+4. لو `META_APP_ID` و `META_APP_SECRET` متظبطين، المنصة بتحوّل التوكن لتوكن طويل المدى، وتوكن الصفحة الناتج ما بيخلصش لوحده.
+
+### تشغيل النشر الحقيقي على Meta (لأي عميل من غير ما تضيفه)
 1. اعمل App على developers.facebook.com وضيف Facebook Login.
 2. ضيف الـ Redirect URI: `{PUBLIC_BASE_URL}/api/social/meta/callback`
 3. اطلب الصلاحيات دي في App Review: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, `business_management`, `ads_management`, `ads_read`.
@@ -79,6 +91,9 @@ cd backend && . .venv/bin/activate && python -m pytest -q
 | الجزء | الحالة |
 |---|---|
 | تسجيل وشركات (multi-tenant) | ✅ |
+| Agent بأوامر بالعربي (جهزلي أسبوع وانشر كل يوم…) | ✅ بيكتب البوستات ويحدد الميعاد والمنصات، والبوست بيتجدول أول ما يتعمله اعتماد |
+| 6 قوالب تصميم + صور خلفية بالـ AI أو صور العميل | ✅ |
+| ربط Meta بالتوكن + أرقام التفاعل الحقيقية بعد النشر | ✅ (لو الحساب تجريبي، مفيش أرقام بتتعرض) |
 | هوية البراند بالـ AI + تعديلها | ✅ |
 | خطة محتوى شهرية + مناسبات مصر والسعودية | ✅ (التواريخ الهجرية تقريبية ومحتاجة تتحدث كل سنة في `ai/occasions.py`) |
 | تعديل البوست وإعادة صياغته بالـ AI والاعتماد | ✅ |

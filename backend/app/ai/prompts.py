@@ -2,9 +2,9 @@
 
 import json
 
-from .catalog import DIALECTS, FONTS_AR, FONTS_EN, ICONS, MARKETS, MONTHS_AR
+from .catalog import DIALECTS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, MONTHS_AR
 
-PROMPT_VERSION = "2026-10-a"
+PROMPT_VERSION = "2026-10-b"
 
 
 def brand_dna(brief: dict) -> str:
@@ -41,6 +41,20 @@ def _brand_summary(dna: dict) -> dict:
     }
 
 
+POST_FIELDS = f"""{{"time":"HH:MM","format":"post|reel|story","pillar":"one of the pillar names","occasion":"occasion name from the list or empty string",
+"headline":"Arabic hook, max 6 words, printed big on the design","subheadline":"Arabic supporting line, max 10 words, printed under the headline, or empty",
+"badge":"very short Arabic label for a corner badge such as 'خصم 20%' or 'جديد' or 'لفترة محدودة', or empty",
+"layout":"one of {json.dumps(LAYOUTS)}","visual_prompt":"English description of the background photo for this post",
+"caption":"2-4 short lines in the dialect","hashtags":["3-5 hashtags"],"cta":"short Arabic call to action"}}"""
+
+DESIGN_RULES = """Work like a senior social media designer and art director:
+- The headline is a hook, not a sentence. Put the price, number or benefit in it when there is one.
+- layout: "offer" only for promotions and always with a badge; "quote" for customer reviews and testimonials;
+  "photo_overlay" or "photo_split" for product, place and lifestyle posts; "bold" for announcements and tips; "minimal" for brand and premium moments. Mix layouts across the month.
+- visual_prompt: a photorealistic commercial photo that matches the business and post (for a car dealer: the actual type of car, showroom, road; for food: the dish).
+  Describe subject, setting, light and camera angle. Never ask for text, letters, logos or watermarks in the photo. Leave clean space for text."""
+
+
 def calendar(brief: dict, dna: dict, year: int, month: int, days_in_month: int, occasions: list[dict], count: int = 12) -> str:
     occ = " | ".join(f'{o["day"]}: {o["title"]}' for o in occasions) or "none"
     return f"""You are the content strategist inside EG Brand. Plan {count} social media posts for {MONTHS_AR[month - 1]} {year} (days 1-{days_in_month}) for this brand.
@@ -49,8 +63,35 @@ Brand DNA: {json.dumps(_brand_summary(dna), ensure_ascii=False)}
 Market: {MARKETS.get(brief.get("market"), MARKETS["EG"])["label"]}. Write every Arabic text in this dialect: {DIALECTS.get(brief.get("dialect"), DIALECTS["msa"])}.
 Occasions this month in this market (use the relevant ones on their dates; never invent public holidays): {occ}
 Mix formats: about 7 "post", 3 "reel", 2 "story". Spread posts across the month. Follow the pillar shares. Be specific to this business, not generic.
-Each item: {{"day":integer,"time":"HH:MM","format":"post|reel|story","pillar":"one of the pillar names","occasion":"occasion name from the list or empty string","headline":"Arabic, max 6 words, printed on the design","caption":"2-4 short lines in the dialect","hashtags":["3-5 hashtags"],"cta":"short Arabic call to action"}}
+{DESIGN_RULES}
+Each item: {{"day":integer, ...}} with these fields: {POST_FIELDS}
 Reply with ONLY a JSON array of {count} such objects sorted by day."""
+
+
+def posts_for_dates(brief: dict, dna: dict, dates: list[str], occasions: list[str], topic: str) -> str:
+    return f"""You are the content strategist inside EG Brand. Write one social media post for each of these dates: {", ".join(dates)}.
+Business: {brief.get("idea", "")}
+Brand DNA: {json.dumps(_brand_summary(dna), ensure_ascii=False)}
+Market: {MARKETS.get(brief.get("market"), MARKETS["EG"])["label"]}. Write every Arabic text in this dialect: {DIALECTS.get(brief.get("dialect"), DIALECTS["msa"])}.
+Focus requested by the owner: {topic or "a balanced mix of the brand pillars"}
+Occasions on these dates (use only if relevant; never invent holidays): {", ".join(occasions) or "none"}
+Use mostly "post" format. Vary the angle every day.
+{DESIGN_RULES}
+Each item: {{"date":"YYYY-MM-DD", ...}} with these fields: {POST_FIELDS}
+Reply with ONLY a JSON array with exactly {len(dates)} objects, one per date, in date order."""
+
+
+def agent_plan(command: str, today: str, weekday: str, tz: str, connected: list[str], best_time: str) -> str:
+    return f"""You are the scheduling agent inside EG Brand, an Arabic social media platform. Turn the owner's command into a plan.
+Today is {today} ({weekday}) in timezone {tz}. Connected platforms: {", ".join(connected) or "none"}.
+Recommended posting time for this market when the owner does not give one: {best_time}.
+Owner's command (Arabic): {command}
+Reply with ONLY a JSON object:
+{{"intent":"create_and_schedule" or "status" or "unsupported",
+"count":number of posts (1-30),"start_date":"YYYY-MM-DD (tomorrow if not given)","every_days":days between posts (1 = daily),
+"time":"HH:MM 24h","platforms":["subset of the connected platforms; all connected ones if none named"],
+"topic":"short Arabic focus of the content, or empty","reply":"one short Arabic sentence telling the owner what you will do"}}
+Use "status" when the owner asks what is scheduled or published. Use "unsupported" for anything else and explain in reply."""
 
 
 def rewrite_post(brief: dict, dna: dict, post: dict, instruction: str) -> str:

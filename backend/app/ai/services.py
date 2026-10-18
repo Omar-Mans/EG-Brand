@@ -2,13 +2,14 @@
 
 import calendar as pycal
 import re
+from datetime import date, timedelta
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from ..models import Brand, Post
-from . import mock, prompts
-from .catalog import AD_PLATFORMS, FONTS_AR, FONTS_EN, ICONS, MARKETS, PALETTE_ROLES, POST_FORMATS
+from ..models import Brand, Post, SocialAccount
+from . import mock, prompts, timing
+from .catalog import AD_PLATFORMS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, PALETTE_ROLES, POST_FORMATS
 from .llm import AIError, complete_json
 from .occasions import occasions_for
 
@@ -76,7 +77,14 @@ def _clean_post(x: dict, days: int) -> dict | None:
         "pillar": str(x.get("pillar") or ""), "occasion": str(x.get("occasion") or ""),
         "headline": str(x.get("headline") or ""), "caption": str(x.get("caption") or ""),
         "hashtags": [str(h) for h in _list(x.get("hashtags"), 6)], "cta": str(x.get("cta") or ""),
+        "design": clean_design(x),
     }
+
+
+def clean_design(x: dict) -> dict:
+    layout = x.get("layout") if x.get("layout") in LAYOUTS else "bold"
+    return {"subheadline": str(x.get("subheadline") or "")[:120], "badge": str(x.get("badge") or "")[:30],
+            "layout": layout, "visual_prompt": str(x.get("visual_prompt") or "")[:600]}
 
 
 def generate_calendar(db: Session, brand: Brand, year: int, month: int, count: int = 12) -> list[Post]:
@@ -95,8 +103,8 @@ def generate_calendar(db: Session, brand: Brand, year: int, month: int, count: i
     key = f"{year:04d}-{month:02d}"
     # Replace the month's unpublished drafts; keep anything already scheduled or published.
     db.execute(delete(Post).where(Post.brand_id == brand.id, Post.month == key, Post.status == "draft"))
-    posts = [Post(company_id=brand.company_id, brand_id=brand.id, month=key, template=i % 3, **p)
-             for i, p in enumerate(sorted(cleaned, key=lambda p: p["day"]))]
+    posts = [Post(company_id=brand.company_id, brand_id=brand.id, month=key, **p)
+             for p in sorted(cleaned, key=lambda p: p["day"])]
     db.add_all(posts)
     db.commit()
     return posts
@@ -152,3 +160,81 @@ def plan_ads(db: Session, brand: Brand, objective: str, budget: float, days: int
         "kpis": [str(x) for x in _list(data.get("kpis"), 6)],
         "tips": [str(x) for x in _list(data.get("tips"), 6)],
     }
+
+
+def connected_platforms(db: Session, company_id: str) -> list[str]:
+    rows = db.scalars(select(SocialAccount.platform).where(SocialAccount.company_id == company_id)).all()
+    return sorted({p for p in rows if p != "meta_ads"})
+
+
+def generate_posts_for_dates(db: Session, brand: Brand, dates: list[date], topic: str, time: str, platforms: list[str]) -> list[Post]:
+    if not brand.dna:
+        raise AIError("no_dna", "ولّد هوية البراند الأول")
+    brief = brand.brief or {}
+    labels = [d.isoformat() for d in dates]
+    occ = []
+    for d in dates:
+        occ += [f"{d.isoformat()}: {o['title']}" for o in occasions_for(d.year, d.month, brief.get("market", "EG")) if o["day"] == d.day]
+    data = complete_json(db, prompts.posts_for_dates(brief, brand.dna, labels, occ, topic),
+                         company_id=brand.company_id, brand_id=brand.id, feature="calendar", tier="quality",
+                         mock=lambda: mock.posts_for_dates(labels))
+    items = data if isinstance(data, list) else (data.get("posts") if isinstance(data, dict) else None) or []
+    posts = []
+    for i, d in enumerate(dates):
+        item = items[i] if i < len(items) and isinstance(items[i], dict) else None
+        cleaned = _clean_post(item, 31) if item else None
+        if not cleaned:
+            continue
+        cleaned["day"], cleaned["time"] = d.day, time
+        cleaned["design"]["plan"] = {"local_at": f"{d.isoformat()}T{time}", "platforms": platforms}
+        posts.append(Post(company_id=brand.company_id, brand_id=brand.id, month=f"{d.year:04d}-{d.month:02d}", **cleaned))
+    if not posts:
+        raise AIError("invalid_json", "الـ AI ما رجّعش بوستات")
+    db.add_all(posts)
+    db.commit()
+    return posts
+
+
+def run_agent(db: Session, brand: Brand, command: str) -> dict:
+    brief = brand.brief or {}
+    tz = timing.brand_tz(brief)
+    now = timing.now_local(tz)
+    best = timing.best_times(brief)["default"]
+    connected = connected_platforms(db, brand.company_id)
+    tomorrow = (now + timedelta(days=1)).date().isoformat()
+    plan = complete_json(db, prompts.agent_plan(command, now.date().isoformat(), timing.WEEKDAYS_AR[now.weekday()], tz, connected, best),
+                         company_id=brand.company_id, brand_id=brand.id, feature="agent", tier="fast",
+                         mock=lambda: mock.agent_plan(tomorrow, connected, best), max_tokens=1200)
+    if not isinstance(plan, dict):
+        raise AIError("invalid_json", "الـ Agent ما فهمش الأمر")
+    intent = plan.get("intent")
+    if intent == "status":
+        rows = db.scalars(select(Post).where(Post.brand_id == brand.id)).all()
+        counts = {k: sum(1 for p in rows if p.status == k) for k in ("draft", "scheduled", "published", "failed")}
+        waiting = sum(1 for p in rows if p.status == "draft" and (p.design or {}).get("plan"))
+        msg = (f"عندك {counts['scheduled']} بوست مجدول، و{counts['published']} اتنشر، "
+               f"و{waiting} مستني اعتمادك، و{counts['failed']} فشل.")
+        return {"intent": "status", "message": msg, "counts": counts}
+    if intent != "create_and_schedule":
+        return {"intent": "unsupported", "message": str(plan.get("reply") or "الأمر ده لسه مش مدعوم.")}
+    try:
+        count = max(1, min(30, int(plan.get("count") or 7)))
+        every = max(1, min(14, int(plan.get("every_days") or 1)))
+        start = date.fromisoformat(str(plan.get("start_date")))
+    except (TypeError, ValueError):
+        count, every, start = 7, 1, now.date() + timedelta(days=1)
+    if start < now.date():
+        start = now.date() + timedelta(days=1)
+    t = str(plan.get("time") or best)
+    if not re.match(r"^\d{1,2}:\d{2}$", t):
+        t = best
+    hh, mm = t.split(":")
+    t = f"{int(hh):02d}:{mm}"
+    wanted = [p for p in (plan.get("platforms") or []) if p in connected] or connected
+    dates = [start + timedelta(days=i * every) for i in range(count)]
+    posts = generate_posts_for_dates(db, brand, dates, str(plan.get("topic") or ""), t, wanted)
+    where = "، ".join(wanted) if wanted else "لسه مفيش حسابات مربوطة، اربطها عشان النشر يشتغل"
+    msg = (f"{plan.get('reply') or ''}\nجهزت {len(posts)} بوست من {dates[0].isoformat()} الساعة {t} على: {where}. "
+           "راجع التصميمات واعتمدها من صفحة المحتوى، وكل بوست تعتمده هيتجدول لوحده في ميعاده.").strip()
+    return {"intent": "create_and_schedule", "message": msg, "post_ids": [p.id for p in posts],
+            "months": sorted({p.month for p in posts})}

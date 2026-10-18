@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [token, setTokenText] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const [s, a] = await Promise.all([api<Status>("/api/social/status"), api<SocialAccount[]>("/api/social/accounts")]);
@@ -35,6 +37,18 @@ export default function SettingsPage() {
     try { window.location.href = (await api<{ url: string }>("/api/social/meta/login-url")).url; }
     catch (e: any) { setError(e.message); }
   }
+  async function connectToken(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setError(""); setMsg("");
+    try {
+      const saved = await api<SocialAccount[]>("/api/social/meta/token", { body: { token } });
+      setMsg(`اتربط: ${saved.filter((a) => a.platform !== "meta_ads").map((a) => `${a.platform === "instagram" ? "Instagram" : "Facebook"} (${a.name})`).join(" و ")}`);
+      setTokenText("");
+      await load();
+    } catch (err: any) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
   async function connectMock(platform: string) {
     try { await api("/api/social/mock/connect", { body: { platform } }); await load(); }
     catch (e: any) { setError(e.message); }
@@ -65,6 +79,20 @@ export default function SettingsPage() {
           {adAccount && <p className="small">حساب الإعلانات: <b>{adAccount.name}</b></p>}
         </section>
       )}
+      <section className="panel">
+        <h3>اربط صفحتك بالتوكن (أسرع طريقة)</h3>
+        <p className="small muted">بيشتغل من غير مراجعة Meta، طول ما صاحب الصفحة ليه دور (Admin أو Developer أو Tester) في تطبيق Meta بتاعك.</p>
+        <ol className="small muted" style={{ margin: 0, paddingInlineStart: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+          <li>افتح <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer">Graph API Explorer</a> واختار تطبيق Meta بتاعك.</li>
+          <li>من Permissions ضيف: pages_show_list, pages_read_engagement, pages_manage_posts, instagram_basic, instagram_content_publish, business_management</li>
+          <li>اضغط Generate Access Token، ووافق على الصفحة وحساب Instagram، وانسخ التوكن هنا.</li>
+        </ol>
+        <form className="row" onSubmit={connectToken}>
+          <input type="password" value={token} onChange={(e) => setTokenText(e.target.value)} placeholder="الصق التوكن هنا (بيبدأ بـ EAA)" style={{ flex: 1 }} aria-label="توكن Meta" autoComplete="off" />
+          <button className="btn primary" type="submit" disabled={busy || token.trim().length < 20}>{busy ? "بنربط…" : "اربط"}</button>
+        </form>
+        <p className="small muted">التوكن بيتخزن مشفّر. ولو META_APP_ID و META_APP_SECRET متظبطين، بنحوّله لتوكن طويل المدى، وتوكن الصفحة الناتج ما بيخلصش لوحده.</p>
+      </section>
       <section className="panel"><h3>الحسابات</h3>
         <div className="grid3">
           {PLATFORMS.map((pl) => {

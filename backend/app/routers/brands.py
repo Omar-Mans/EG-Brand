@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..ai.catalog import AD_OBJECTIVES, AD_PLATFORMS, DIALECTS, FONTS_AR, FONTS_EN, ICONS, MARKETS, STYLES
+from ..ai import timing
+from ..ai.catalog import AD_OBJECTIVES, AD_PLATFORMS, DEFAULT_TZ, DIALECTS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, STYLES, TIMEZONES
 from ..ai.occasions import occasions_for
 from ..ai.services import HEX
 from ..db import get_db
@@ -22,6 +23,7 @@ class BriefIn(BaseModel):
     dialect: str = "egyptian"
     styles: list[str] = []
     colors: list[str] = []
+    timezone: str = ""
 
 
 class DnaPatch(BaseModel):
@@ -40,6 +42,15 @@ class CalendarIn(BaseModel):
     count: int = Field(default=12, ge=4, le=30)
 
 
+class ImagesIn(BaseModel):
+    month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
+    replace: bool = False
+
+
+class AgentIn(BaseModel):
+    command: str = Field(min_length=3, max_length=500)
+
+
 class AdsPlanIn(BaseModel):
     objective: str
     budget: float = Field(gt=0, le=10_000_000)
@@ -53,13 +64,15 @@ def _clean_brief(body: BriefIn) -> dict:
     if body.dialect not in DIALECTS:
         raise HTTPException(422, "اللهجة مش مدعومة")
     return {"idea": body.idea.strip(), "name": body.name.strip(), "market": body.market, "dialect": body.dialect,
-            "styles": [s for s in body.styles if s in STYLES][:4], "colors": [c for c in body.colors if HEX.match(c)][:3]}
+            "styles": [s for s in body.styles if s in STYLES][:4], "colors": [c for c in body.colors if HEX.match(c)][:3],
+            "timezone": body.timezone if body.timezone in TIMEZONES else DEFAULT_TZ[body.market]}
 
 
 @router.get("/catalog")
 def catalog():
     return {"fonts_ar": FONTS_AR, "fonts_en": FONTS_EN, "icons": ICONS, "styles": STYLES, "markets": MARKETS,
-            "dialects": DIALECTS, "ad_objectives": AD_OBJECTIVES, "ad_platforms": AD_PLATFORMS}
+            "dialects": DIALECTS, "ad_objectives": AD_OBJECTIVES, "ad_platforms": AD_PLATFORMS,
+            "layouts": LAYOUTS, "timezones": TIMEZONES}
 
 
 @router.get("/occasions")
@@ -163,3 +176,22 @@ def plan_ads(brand_id: str, body: AdsPlanIn, user: User = Depends(current_user),
     if body.objective not in AD_OBJECTIVES:
         raise HTTPException(422, "هدف الحملة مش معروف")
     return job_out(enqueue(db, user.company_id, "ads", {"brand_id": brand.id, **body.model_dump()}))
+
+
+@router.post("/brands/{brand_id}/images")
+def generate_images(brand_id: str, body: ImagesIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    return job_out(enqueue(db, user.company_id, "images", {"brand_id": brand.id, **body.model_dump()}))
+
+
+@router.post("/brands/{brand_id}/agent")
+def agent(brand_id: str, body: AgentIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    if not brand.dna:
+        raise HTTPException(409, "ولّد هوية البراند الأول")
+    return job_out(enqueue(db, user.company_id, "agent", {"brand_id": brand.id, "command": body.command.strip()}))
+
+
+@router.get("/brands/{brand_id}/best-times")
+def best_times(brand_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return timing.best_times(get_brand(brand_id, user, db).brief or {})

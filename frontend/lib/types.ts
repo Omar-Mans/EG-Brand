@@ -5,6 +5,7 @@ export type Brief = {
   dialect: "egyptian" | "saudi" | "msa";
   styles: string[];
   colors: string[];
+  timezone?: string;
 };
 
 export type PaletteColor = { role: string; name: string; hex: string };
@@ -29,6 +30,16 @@ export type Dna = {
 
 export type Brand = { id: string; name: string; brief: Brief; dna: Dna | null; created_at: string };
 
+export type Layout = "photo_overlay" | "photo_split" | "bold" | "offer" | "minimal" | "quote";
+
+export type PostDesign = {
+  subheadline?: string;
+  badge?: string;
+  layout?: Layout;
+  visual_prompt?: string;
+  plan?: { local_at: string; platforms: string[] };
+};
+
 export type PostStatus = "draft" | "scheduled" | "publishing" | "published" | "failed";
 
 export type Post = {
@@ -45,6 +56,10 @@ export type Post = {
   hashtags: string[];
   cta: string;
   template: number;
+  design: PostDesign;
+  bg_url: string | null;
+  metrics: Record<string, Record<string, number>>;
+  metrics_at: string | null;
   approved: boolean;
   image_url: string | null;
   status: PostStatus;

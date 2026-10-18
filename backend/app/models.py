@@ -63,8 +63,12 @@ class Post(Base):
     hashtags: Mapped[list] = mapped_column(JSON, default=list)
     cta: Mapped[str] = mapped_column(String(300), default="")
     template: Mapped[int] = mapped_column(Integer, default=0)
+    # Design brief from the AI art director: subheadline, badge, layout, visual_prompt, and an optional
+    # schedule plan from the agent ({"local_at": "YYYY-MM-DDTHH:MM", "platforms": [...]}).
+    design: Mapped[dict] = mapped_column(JSON, default=dict)
+    bg_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # background photo (AI or uploaded)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
-    image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # final rendered design
     # Publishing
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)  # draft|scheduled|publishing|published|failed
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
@@ -72,6 +76,8 @@ class Post(Base):
     publish_results: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str] = mapped_column(Text, default="")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)  # real engagement read back from the platforms
+    metrics_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
