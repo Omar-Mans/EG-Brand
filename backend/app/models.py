@@ -43,6 +43,8 @@ class Brand(Base):
     name: Mapped[str] = mapped_column(String(200), default="")
     brief: Mapped[dict] = mapped_column(JSON, default=dict)  # idea, name, market, dialect, styles, colors
     dna: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Brand DNA: single source of truth
+    discovery: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # questionnaire answers, AI follow-ups, website excerpt
+    strategy: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # marketing strategy built from the discovery
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

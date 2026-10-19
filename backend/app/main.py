@@ -2,7 +2,9 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import hmac
+
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -39,7 +41,17 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "ai": "live" if s.ai_live else "mock", "social": "live" if s.social_live else "mock"}
+        return {"ok": True, "ai": "live" if s.ai_live else "mock", "social": "live" if s.social_live else "mock",
+                "images": s.image_backend, "stock": s.stock_backend or "off"}
+
+    @app.post("/api/cron/tick")
+    def cron_tick(x_cron_secret: str = Header(default="")):
+        """For free hosts that sleep: an external cron (cron-job.org) calls this every few minutes to run due work."""
+        if not s.cron_secret or not hmac.compare_digest(x_cron_secret, s.cron_secret):
+            raise HTTPException(403, "forbidden")
+        from .jobs import process_due_posts, process_jobs
+
+        return {"jobs": process_jobs(), "posts": process_due_posts()}
 
     return app
 

@@ -37,6 +37,7 @@ class PostPatch(BaseModel):
 
 class BackgroundIn(BaseModel):
     prompt: str = Field(default="", max_length=600)
+    source: str = Field(default="ai", pattern="^(ai|stock)$")
 
 
 class RegenIn(BaseModel):
@@ -162,7 +163,8 @@ def unschedule(post_id: str, user: User = Depends(current_user), db: Session = D
 def background(post_id: str, body: BackgroundIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     post = _post(post_id, user, db)
     _editable(post)
-    return job_out(enqueue(db, user.company_id, "background", {"brand_id": post.brand_id, "post_id": post.id, "prompt": body.prompt}))
+    return job_out(enqueue(db, user.company_id, "background", {"brand_id": post.brand_id, "post_id": post.id,
+                                                            "prompt": body.prompt, "source": body.source}))
 
 
 @router.post("/{post_id}/background/upload")
@@ -179,6 +181,7 @@ async def upload_background(post_id: str, file: UploadFile = File(...), user: Us
     post.bg_url = save_image(data, user.company_id, ext, file.content_type)
     post.image_url, post.approved = None, False
     design = dict(post.design or {})
+    design.pop("photo_credit", None)
     if design.get("layout") not in ("photo_overlay", "photo_split"):
         design["layout"] = "photo_overlay"
     post.design = design

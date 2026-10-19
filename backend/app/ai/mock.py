@@ -83,3 +83,39 @@ def posts_for_dates(dates: list[str]) -> list[dict]:
 def agent_plan(today: str, connected: list[str], best_time: str) -> dict:
     return {"intent": "create_and_schedule", "count": 7, "start_date": today, "every_days": 1, "time": best_time,
             "platforms": connected, "topic": "", "reply": "هجهز 7 بوستات، بوست كل يوم."}
+
+
+def followups() -> list[dict]:
+    return [
+        {"question": "إيه أكتر 3 منتجات بتكسب منها؟", "why": "عشان نركز المحتوى والإعلانات على اللي بيجيب فلوس"},
+        {"question": "بتقدم توصيل أو تقسيط أو ضمان؟", "why": "دي أقوى أسباب للشراء ولازم تبان في كل بوست"},
+        {"question": "مين بيرد على الرسايل وفي خلال قد إيه؟", "why": "سرعة الرد بتفرق في تحويل الرسالة لبيعة"},
+        {"question": "عندك تقييمات أو آراء عملاء نقدر نستخدمها؟", "why": "الدليل الاجتماعي بيقلل تردد العميل"},
+    ]
+
+
+def strategy() -> dict:
+    kpi = lambda n, t: {"name": n, "target": t}  # noqa: E731
+    return {
+        "summary": "استراتيجية تجريبية: نبني ثقة الأول بمحتوى بيوري المنتج الحقيقي وآراء العملاء، وبعدين نحوّل التفاعل لرسايل ومبيعات بعروض واضحة.",
+        "diagnosis": {"strengths": ["منتج واضح", "خدمة سريعة"], "weaknesses": ["حضور ضعيف على السوشيال"],
+                      "opportunities": ["مواسم قريبة", "منافسين محتواهم عام"], "threats": ["حرب أسعار"]},
+        "positioning": {"statement": "للعميل اللي عايز جودة مضمونة، إحنا الاختيار الأسرع والأوضح في السعر، مش زي اللي بيخبوا التفاصيل.",
+                        "usp": ["أسعار معلنة", "رد خلال ساعة", "ضمان"], "proof_points": ["آراء عملاء", "صور حقيقية", "خطوات الشراء"]},
+        "personas": [{"name": "الشاري الحريص", "age": "28-40", "description": "بيقارن كتير قبل ما يشتري.", "pains": ["خايف يتغش"],
+                      "motivations": ["الضمان"], "objections": ["السعر"], "where": ["فيسبوك", "انستجرام"], "message": "كل التفاصيل قدامك"}],
+        "channels": [{"platform": "Instagram", "role": "الوعي والثقة", "priority": "high", "posts_per_week": 3, "formats": ["Reels", "Carousel"], "why": "جمهورك هناك"},
+                     {"platform": "Facebook", "role": "الرسايل والمبيعات", "priority": "medium", "posts_per_week": 3, "formats": ["Post"], "why": "الرسايل أسهل"}],
+        "content_pillars": [{"name": "المنتج", "share": 35, "goal": "بيع", "examples": ["مميزات المنتج"]},
+                            {"name": "الثقة", "share": 25, "goal": "ثقة", "examples": ["رأي عميل"]},
+                            {"name": "تعليمي", "share": 25, "goal": "قيمة", "examples": ["نصيحة"]},
+                            {"name": "عروض", "share": 15, "goal": "تحويل", "examples": ["عرض الأسبوع"]}],
+        "offers": [{"title": "عرض الافتتاح", "description": "خصم لأول 20 عميل", "when": "الشهر الأول"}],
+        "budget": {"monthly_total": 0, "split": [{"item": "إعلانات انستجرام", "pct": 100, "note": ""}], "note": "ابدأ بالمحتوى المجاني"},
+        "roadmap": [{"phase": f"الشهر {m}", "goal": "هدف المرحلة", "actions": ["اعمل كذا"], "kpis": [kpi("رسايل", "30")]}
+                    for m in ("الأول", "التاني", "التالت")],
+        "quick_wins": ["ظبط البايو", "ثبّت 3 بوستات", "رد آلي على الرسايل", "صور المنتج", "اطلب 5 تقييمات"],
+        "kpis": [{"name": "الرسايل", "target": "30 في الشهر (هدف مبدئي)", "why": "أقرب حاجة للبيع"}],
+        "risks": [{"risk": "قلة المحتوى المصور", "mitigation": "يوم تصوير كل أسبوعين"}],
+        "competitors": [{"name": "منافس مباشر", "their_strength": "متابعين أكتر", "our_angle": "شفافية السعر"}],
+    }

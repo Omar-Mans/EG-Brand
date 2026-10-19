@@ -1,5 +1,6 @@
 """Background photos for post designs. The design itself (Arabic text, layout) is drawn by the frontend on top."""
 
+import base64
 import random
 import struct
 import time
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..models import Brand, Post, UsageEvent
 from ..storage import save_image
+from .catalog import PHOTO_LAYOUTS
 from .llm import AIError, month_spend
 
 
@@ -46,7 +48,43 @@ def _download(client: httpx.Client, url: str) -> tuple[bytes, str]:
     return r.content, ctype
 
 
-def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: str = "") -> str:
+def stock_query(post: Post, brand: Brand, custom: str = "") -> str:
+    design = post.design or {}
+    q = custom or design.get("photo_query") or ""
+    if not q:  # fall back to the first words of the English visual prompt
+        q = " ".join((design.get("visual_prompt") or "business").replace(",", " ").split()[:4])
+    return q[:80]
+
+
+def _cloudflare(client: httpx.Client, prompt: str) -> tuple[bytes, str]:
+    s = get_settings()
+    r = client.post(f"https://api.cloudflare.com/client/v4/accounts/{s.cf_account_id}/ai/run/{s.cf_image_model}",
+                    headers={"Authorization": f"Bearer {s.cf_api_token}"}, json={"prompt": prompt[:2000], "steps": 4})
+    if r.status_code >= 400:
+        raise AIError("image_failed", f"Cloudflare رجّع {r.status_code}: {r.text[:200]}")
+    try:
+        return base64.b64decode(r.json()["result"]["image"]), "image/jpeg"
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AIError("image_failed", "Cloudflare ما رجّعش صورة") from exc
+
+
+def _pexels(client: httpx.Client, query: str, portrait: bool) -> tuple[bytes, str, dict]:
+    s = get_settings()
+    r = client.get("https://api.pexels.com/v1/search", headers={"Authorization": s.pexels_api_key},
+                   params={"query": query, "orientation": "portrait" if portrait else "square", "per_page": 15})
+    if r.status_code >= 400:
+        raise AIError("image_failed", f"Pexels رجّع {r.status_code}")
+    photos = r.json().get("photos") or []
+    if not photos:
+        raise AIError("no_photo", f"مفيش صور مناسبة لـ \"{query}\"، جرب كلمات تانية بالإنجليزي")
+    photo = random.choice(photos[:8])
+    src = photo.get("src") or {}
+    data, ctype = _download(client, src.get("portrait") if portrait else src.get("large2x") or src.get("original"))
+    return data, ctype, {"name": photo.get("photographer", ""), "url": photo.get("url", ""), "source": "Pexels"}
+
+
+def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: str = "", source: str = "ai") -> str:
+    """source="ai" makes a new photo with the image model; source="stock" picks a real photo from Pexels."""
     s = get_settings()
     company = brand.company_id
     budget = s.default_monthly_ai_budget_usd
@@ -58,24 +96,34 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
     if budget and month_spend(db, company) >= budget:
         raise AIError("budget_exceeded", "الشركة وصلت لحد ميزانية الـ AI الشهرية")
 
-    backend = s.image_backend
+    if source == "stock":
+        backend = s.stock_backend
+        if not backend:
+            raise AIError("no_stock", "حط PEXELS_API_KEY في الإعدادات عشان الصور الحقيقية تشتغل (مجاني)")
+    else:
+        backend = s.image_backend
     prompt = build_prompt(post, brand, custom_prompt)
     w, h = _size(post)
     started = time.monotonic()
     cost = 0.0
+    credit = None
     if backend == "mock":
         palette = (brand.dna or {}).get("palette") or [{"hex": "#556677"}]
         data, ctype = _solid_png(palette[0]["hex"]), "image/png"
     else:
         try:
             with httpx.Client(timeout=180) as client:
-                if backend == "fal":
+                if backend == "pexels":
+                    data, ctype, credit = _pexels(client, stock_query(post, brand, custom_prompt), post.format != "post")
+                elif backend == "fal":
                     r = client.post(f"https://fal.run/{s.fal_model}", headers={"Authorization": f"Key {s.fal_key}"},
                                     json={"prompt": prompt, "image_size": {"width": w, "height": h}, "num_images": 1})
                     if r.status_code >= 400:
                         raise AIError("image_failed", f"fal رجّع {r.status_code}: {r.text[:200]}")
                     data, ctype = _download(client, r.json()["images"][0]["url"])
                     cost = s.image_cost_usd
+                elif backend == "cloudflare":
+                    data, ctype = _cloudflare(client, prompt)
                 else:
                     url = (f"https://image.pollinations.ai/prompt/{quote(prompt)}"
                            f"?width={w}&height={h}&nologo=true&model=flux&seed={random.randint(1, 10**6)}")
@@ -90,6 +138,14 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
     db.add(UsageEvent(company_id=company, brand_id=brand.id, feature="image", model=backend, cost_usd=cost,
                       latency_ms=int((time.monotonic() - started) * 1000), ok=True))
     post.bg_url = url
+    design = dict(post.design or {})
+    if credit:
+        design["photo_credit"] = credit
+    else:
+        design.pop("photo_credit", None)
+    if design.get("layout") not in PHOTO_LAYOUTS:  # a photo is only visible on the photo layouts
+        design["layout"] = "photo_overlay"
+    post.design = design
     post.image_url = None
     post.approved = False
     db.commit()

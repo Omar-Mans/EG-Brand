@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..ai import discovery as disc
 from ..ai import timing
 from ..ai.catalog import AD_OBJECTIVES, AD_PLATFORMS, DEFAULT_TZ, DIALECTS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, STYLES, TIMEZONES
 from ..ai.occasions import occasions_for
@@ -39,12 +40,21 @@ class DnaPatch(BaseModel):
 class CalendarIn(BaseModel):
     year: int = Field(ge=2024, le=2100)
     month: int = Field(ge=1, le=12)
-    count: int = Field(default=12, ge=4, le=30)
+    count: int | None = Field(default=None, ge=4, le=30)  # None: follow the strategy's cadence
 
 
 class ImagesIn(BaseModel):
     month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     replace: bool = False
+    source: str = Field(default="ai", pattern="^(ai|stock)$")
+
+
+class DiscoveryIn(BaseModel):
+    answers: dict = {}
+
+
+class FollowupAnswersIn(BaseModel):
+    answers: list[str] = Field(default=[], max_length=6)
 
 
 class AgentIn(BaseModel):
@@ -195,3 +205,45 @@ def agent(brand_id: str, body: AgentIn, user: User = Depends(current_user), db: 
 @router.get("/brands/{brand_id}/best-times")
 def best_times(brand_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     return timing.best_times(get_brand(brand_id, user, db).brief or {})
+
+
+@router.get("/discovery/questions")
+def discovery_questions():
+    return {"sections": disc.SECTIONS, "required": disc.REQUIRED}
+
+
+@router.put("/brands/{brand_id}/discovery")
+def save_discovery(brand_id: str, body: DiscoveryIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    brand.discovery = {**(brand.discovery or {}), "answers": disc.clean_answers(body.answers)}
+    db.commit()
+    return brand_out(brand)
+
+
+@router.post("/brands/{brand_id}/discovery/followups")
+def discovery_followups(brand_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    missing = disc.missing_required((brand.discovery or {}).get("answers") or {})
+    if missing:
+        raise HTTPException(409, "كمّل الأسئلة الأساسية الأول: " + "، ".join(disc.QUESTIONS[q]["label"] for q in missing))
+    return job_out(enqueue(db, user.company_id, "followups", {"brand_id": brand.id}))
+
+
+@router.put("/brands/{brand_id}/discovery/followups")
+def answer_followups(brand_id: str, body: FollowupAnswersIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    d = dict(brand.discovery or {})
+    d["followups"] = [{**f, "answer": (body.answers[i] if i < len(body.answers) else "").strip()[:1500]}
+                      for i, f in enumerate(d.get("followups") or [])]
+    brand.discovery = d
+    db.commit()
+    return brand_out(brand)
+
+
+@router.post("/brands/{brand_id}/strategy")
+def make_strategy(brand_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    brand = get_brand(brand_id, user, db)
+    missing = disc.missing_required((brand.discovery or {}).get("answers") or {})
+    if missing:
+        raise HTTPException(409, "كمّل الأسئلة الأساسية الأول: " + "، ".join(disc.QUESTIONS[q]["label"] for q in missing))
+    return job_out(enqueue(db, user.company_id, "strategy", {"brand_id": brand.id}))

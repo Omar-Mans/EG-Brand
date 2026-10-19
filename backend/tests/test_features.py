@@ -47,7 +47,9 @@ def test_backgrounds_and_design_edits(client):
     run_job(client, h, client.post(f"/api/brands/{brand['id']}/calendar", headers=h, json={"year": 2026, "month": 11}).json())
     result = run_job(client, h, client.post(f"/api/brands/{brand['id']}/images", headers=h, json={"month": "2026-11"}).json())["result"]
     posts = client.get(f"/api/brands/{brand['id']}/posts?month=2026-11", headers=h).json()
-    assert len(result["post_ids"]) == len(posts) and all(p["bg_url"] for p in posts)
+    photo = [p for p in posts if p["design"]["layout"] in ("photo_overlay", "photo_split")]
+    assert photo and len(result["post_ids"]) == len(photo) and all(p["bg_url"] for p in photo)
+    assert all(not p["bg_url"] for p in posts if p not in photo)  # text layouts keep their look
 
     pid = posts[0]["id"]
     r = client.patch(f"/api/posts/{pid}", headers=h, json={"layout": "offer", "badge": "خصم 30%", "subheadline": "لحد آخر الشهر"})

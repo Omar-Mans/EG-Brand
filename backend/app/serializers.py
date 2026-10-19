@@ -7,6 +7,7 @@ def iso(dt):
 
 def brand_out(b: Brand) -> dict:
     return {"id": b.id, "name": b.name, "brief": b.brief or {}, "dna": b.dna,
+            "discovery": b.discovery or {}, "strategy": b.strategy,
             "created_at": iso(b.created_at), "updated_at": iso(b.updated_at)}
 
 

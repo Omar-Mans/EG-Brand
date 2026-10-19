@@ -29,6 +29,8 @@ export default function BrandFrame({ children }: { children: React.ReactNode }) 
   if (!brand) return <p className="muted">بنحمّل البراند…</p>;
 
   const tabs = [
+    ["/discovery", "الدراسة"],
+    ["/strategy", "الاستراتيجية"],
     ["", "الهوية"],
     ["/content", "المحتوى"],
     ["/publish", "النشر"],
@@ -39,7 +41,7 @@ export default function BrandFrame({ children }: { children: React.ReactNode }) 
     <BrandCtx.Provider value={{ brand, reload, setBrand }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h1>{brand.name || "براند جديد"}</h1>
-        <Link className="btn sm" href="/brands">كل البراندات</Link>
+        <Link className="btn sm noprint" href="/brands">كل البراندات</Link>
       </div>
       <nav className="tabs">
         {tabs.map(([suffix, label], i) => (

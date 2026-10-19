@@ -98,3 +98,17 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px }
 .fbtags { padding: 0 12px; color: #385898; font-size: 14px }
 .agent { border-color: var(--gold) }
 .agent .quick { display: flex; flex-wrap: wrap; gap: 8px }
+.swot .strengths { border-color: var(--ok) } .swot .weaknesses { border-color: var(--bad) }
+.swot .opportunities { border-color: var(--gold) } .swot .threats { border-color: var(--warn) }
+.strategy { display: flex; flex-direction: column; gap: 20px }
+ol.clean { margin: 0; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 6px }
+@media print {
+  :root { --bg: #fff; --panel: #fff; --panel2: #F4F2EE; --line: #DDD8CF; --fg: #1A1A1A; --muted: #5A5A66; --gold: #9A6A00; color-scheme: light }
+  body { padding: 0; font-size: 12px }
+  .top, .tabs, .noprint, body > div > header { display: none !important }
+  .panel, .card { break-inside: avoid; box-shadow: none }
+  main { padding: 0 }
+  .bar i { print-color-adjust: exact; -webkit-print-color-adjust: exact }
+  .tag { print-color-adjust: exact; -webkit-print-color-adjust: exact }
+  .tag.gold { background: #FBF1DA; color: #7A5300 } .tag.ok { background: #E3F4EA; color: #1D7A4A }
+}

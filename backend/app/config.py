@@ -32,11 +32,19 @@ class Settings(BaseSettings):
     llm_price_overrides: str = ""
     default_monthly_ai_budget_usd: float = 5.0
 
-    # Background photos for post designs: auto picks fal when FAL_KEY is set, else pollinations when AI is live, else mock
-    image_provider: str = "auto"  # auto | fal | pollinations | mock
+    # AI background photos. auto: fal (paid) > Cloudflare Workers AI (free tier) > pollinations (free, no key) > mock
+    image_provider: str = "auto"  # auto | fal | cloudflare | pollinations | mock
     fal_key: str = ""
     fal_model: str = "fal-ai/flux/schnell"
-    image_cost_usd: float = 0.003  # per generated image, for the cost page
+    image_cost_usd: float = 0.003  # per fal image, for the cost page
+    cf_account_id: str = ""
+    cf_api_token: str = ""
+    cf_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
+    # Real stock photos (free for commercial use, no attribution required)
+    pexels_api_key: str = ""
+
+    # External scheduler (e.g. cron-job.org) can call /api/cron/tick when free hosting sleeps
+    cron_secret: str = ""
 
     # Storage for rendered images (must be publicly reachable for Instagram publishing)
     storage_backend: str = "local"  # local | s3
@@ -68,7 +76,15 @@ class Settings(BaseSettings):
             return self.image_provider
         if self.fal_key:
             return "fal"
+        if self.cf_account_id and self.cf_api_token:
+            return "cloudflare"
         return "pollinations" if self.ai_live else "mock"
+
+    @property
+    def stock_backend(self) -> str:
+        if self.pexels_api_key:
+            return "pexels"
+        return "mock" if not self.ai_live else ""
 
     @property
     def social_live(self) -> bool:

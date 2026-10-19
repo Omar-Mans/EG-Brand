@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .ai import images, services
+from .ai.catalog import PHOTO_LAYOUTS
 from .ai.llm import AIError
 from .db import SessionLocal, is_postgres
 from .models import Brand, Job, Post
@@ -35,7 +36,9 @@ def run_job(db: Session, job: Job) -> dict:
     if job.kind == "dna":
         return {"dna": services.generate_dna(db, _brand(db, job))}
     if job.kind == "calendar":
-        posts = services.generate_calendar(db, _brand(db, job), int(p["year"]), int(p["month"]), int(p.get("count", 12)))
+        brand = _brand(db, job)
+        count = int(p.get("count") or services.posts_per_month(brand))
+        posts = services.generate_calendar(db, brand, int(p["year"]), int(p["month"]), count)
         return {"post_ids": [x.id for x in posts]}
     if job.kind == "regen":
         post = db.get(Post, p["post_id"])
@@ -56,11 +59,13 @@ def run_job(db: Session, job: Job) -> dict:
         for post in db.scalars(q.order_by(Post.day)).all()[:20]:
             if post.bg_url and not p.get("replace"):
                 continue
+            if not p.get("post_ids") and (post.design or {}).get("layout") not in PHOTO_LAYOUTS:
+                continue  # the art direction chose a text-only layout for this post
             try:
-                images.generate_background(db, brand, post)
+                images.generate_background(db, brand, post, source=p.get("source", "ai"))
                 done.append(post.id)
             except AIError as exc:
-                if exc.code == "budget_exceeded":
+                if exc.code in ("budget_exceeded", "no_stock"):
                     raise
                 failed += 1
         if failed and not done:
@@ -70,7 +75,12 @@ def run_job(db: Session, job: Job) -> dict:
         post = db.get(Post, p["post_id"])
         if not post or post.company_id != job.company_id:
             raise AIError("not_found", "البوست مش موجود")
-        return {"post_id": post.id, "bg_url": images.generate_background(db, _brand(db, job), post, p.get("prompt", ""))}
+        bg = images.generate_background(db, _brand(db, job), post, p.get("prompt", ""), p.get("source", "ai"))
+        return {"post_id": post.id, "bg_url": bg}
+    if job.kind == "followups":
+        return {"followups": services.generate_followups(db, _brand(db, job))}
+    if job.kind == "strategy":
+        return {"strategy": services.generate_strategy(db, _brand(db, job))}
     if job.kind == "ads":
         return {"plan": services.plan_ads(db, _brand(db, job), p["objective"], float(p["budget"]), int(p["days"]), p.get("platforms", []))}
     raise AIError("unknown_job", f"نوع مهمة غير معروف: {job.kind}")

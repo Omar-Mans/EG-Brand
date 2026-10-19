@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import BriefForm, { EMPTY_BRIEF } from "@/components/BriefForm";
-import { api, waitJob } from "@/lib/api";
+import { api } from "@/lib/api";
 import { MARKETS } from "@/lib/catalog";
-import type { Brand, Brief, Job } from "@/lib/types";
+import type { Brand, Brief } from "@/lib/types";
 
 export default function BrandsPage() {
   const router = useRouter();
@@ -26,10 +26,7 @@ export default function BrandsPage() {
     try {
       setStatus("بنحفظ المشروع…");
       const brand = await api<Brand>("/api/brands", { body: brief });
-      setStatus("الـ AI بيبني هوية البراند… (ممكن ياخد من 20 لـ 60 ثانية)");
-      const job = await api<Job>(`/api/brands/${brand.id}/generate-dna`, { method: "POST" });
-      await waitJob(job);
-      router.push(`/brands/${brand.id}`);
+      router.push(`/brands/${brand.id}/discovery`);  // study the business first, then the strategy builds everything
     } catch (e: any) {
       setError(e.message);
       setStatus("");
@@ -46,8 +43,8 @@ export default function BrandsPage() {
       </div>
       {creating && (
         <>
-          <div><h2>احكيلنا عن المشروع</h2><p className="muted">اكتب الفكرة بجملة أو اتنين، والـ AI هيطلّع هوية البراند كاملة.</p></div>
-          <BriefForm initial={EMPTY_BRIEF} submitLabel="ولّد هوية البراند" busy={busy} onSubmit={create} />
+          <div><h2>احكيلنا عن المشروع</h2><p className="muted">اكتب الفكرة بجملة أو اتنين. بعدها هنسألك أسئلة زي اللي بتسألها أي وكالة تسويق، عشان الخطة تطلع مفصّلة على مشروعك.</p></div>
+          <BriefForm initial={EMPTY_BRIEF} submitLabel="ابدأ دراسة المشروع" busy={busy} onSubmit={create} />
           {status && <p className="status" aria-live="polite">{status}</p>}
         </>
       )}
@@ -57,7 +54,7 @@ export default function BrandsPage() {
           {brands.map((b) => {
             const p = b.dna?.palette || [];
             return (
-              <Link key={b.id} href={`/brands/${b.id}`} className="card" style={{ textDecoration: "none", color: "inherit" }}>
+              <Link key={b.id} href={b.dna ? `/brands/${b.id}` : `/brands/${b.id}/discovery`} className="card" style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="row" style={{ gap: 4 }}>{p.slice(0, 5).map((c) => <span key={c.role} style={{ width: 22, height: 22, borderRadius: 6, background: c.hex }} />)}</div>
                 <h3>{b.name || "براند جديد"}</h3>
                 <p className="small muted">{b.brief.idea.slice(0, 90)}</p>

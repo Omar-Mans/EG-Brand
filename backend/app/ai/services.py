@@ -8,10 +8,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..models import Brand, Post, SocialAccount
+from . import discovery as disc
 from . import mock, prompts, timing
 from .catalog import AD_PLATFORMS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, PALETTE_ROLES, POST_FORMATS
 from .llm import AIError, complete_json
 from .occasions import occasions_for
+from .website import WebsiteError, fetch_text
 
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -52,11 +54,172 @@ def normalize_dna(d: dict, preferred_name: str = "") -> dict:
     }
 
 
+def brand_context(brand: Brand, limit: int = 5000) -> str:
+    """What every prompt should know: the owner's discovery answers plus the essentials of the agreed strategy."""
+    parts = [disc.as_text(brand.discovery, 3500)]
+    st = brand.strategy or {}
+    if st:
+        pos = st.get("positioning") or {}
+        lines = [f"- Positioning: {pos.get('statement', '')}"]
+        if pos.get("usp"):
+            lines.append(f"- USPs: {'; '.join(pos['usp'])}")
+        for p in st.get("personas") or []:
+            lines.append(f"- Persona {p.get('name')}: {p.get('description')} | message: {p.get('message')}")
+        if st.get("content_pillars"):
+            lines.append("- Content pillars: " + "; ".join(f"{p['name']} {p['share']}% ({p.get('goal', '')})" for p in st["content_pillars"]))
+        if st.get("channels"):
+            lines.append("- Channels: " + "; ".join(f"{c['platform']} ({c['role']}, {c['posts_per_week']}/week)" for c in st["channels"]))
+        parts.append("\n".join(lines))
+    return "\n".join(x for x in parts if x)[:limit]
+
+
+def _strs(value, n: int) -> list[str]:
+    return [str(x).strip() for x in _list(value, n) if str(x).strip()]
+
+
+def _dicts(value, n: int, keys: dict) -> list[dict]:
+    """Keeps up to n dicts and coerces each key: str, list (of str) or number."""
+    out = []
+    for x in _list(value, n):
+        if not isinstance(x, dict):
+            continue
+        row = {}
+        for k, kind in keys.items():
+            v = x.get(k)
+            if kind == "list":
+                row[k] = _strs(v, 8)
+            elif kind == "num":
+                try:
+                    row[k] = float(v or 0)
+                except (TypeError, ValueError):
+                    row[k] = 0.0
+            else:
+                row[k] = str(v or "").strip()
+        out.append(row)
+    return out
+
+
+def _shares(rows: list[dict], key: str) -> list[dict]:
+    rows = [r for r in rows if r[key] > 0] or rows
+    total = sum(r[key] for r in rows) or len(rows) or 1
+    for r in rows:
+        r[key] = round((r[key] or 1) / total * 100) if total else 0
+    return rows
+
+
+def normalize_strategy(d: dict) -> dict:
+    if not isinstance(d, dict):
+        raise AIError("invalid_json", "شكل الاستراتيجية مش صحيح")
+    dg = d.get("diagnosis") if isinstance(d.get("diagnosis"), dict) else {}
+    pos = d.get("positioning") if isinstance(d.get("positioning"), dict) else {}
+    budget = d.get("budget") if isinstance(d.get("budget"), dict) else {}
+    try:
+        monthly = max(0.0, float(budget.get("monthly_total") or 0))
+    except (TypeError, ValueError):
+        monthly = 0.0
+    kpi = {"name": "str", "target": "str"}
+    roadmap = []
+    for r in _list(d.get("roadmap"), 3):
+        if isinstance(r, dict):
+            roadmap.append({"phase": str(r.get("phase") or ""), "goal": str(r.get("goal") or ""),
+                            "actions": _strs(r.get("actions"), 8), "kpis": _dicts(r.get("kpis"), 5, kpi)})
+    for i, r in enumerate(roadmap):
+        r["phase"] = r["phase"] or ["الشهر الأول", "الشهر التاني", "الشهر التالت"][i]
+    channels = _dicts(d.get("channels"), 4, {"platform": "str", "role": "str", "priority": "str", "posts_per_week": "num",
+                                               "formats": "list", "why": "str"})
+    for c in channels:
+        c["priority"] = c["priority"] if c["priority"] in ("high", "medium", "low") else "medium"
+        c["posts_per_week"] = int(max(1, min(21, c["posts_per_week"] or 3)))
+    pillars = _shares(_dicts(d.get("content_pillars"), 5, {"name": "str", "share": "num", "goal": "str", "examples": "list"}), "share")
+    out = {
+        "summary": str(d.get("summary") or ""),
+        "diagnosis": {k: _strs(dg.get(k), 5) for k in ("strengths", "weaknesses", "opportunities", "threats")},
+        "positioning": {"statement": str(pos.get("statement") or ""), "usp": _strs(pos.get("usp"), 4),
+                        "proof_points": _strs(pos.get("proof_points"), 4)},
+        "personas": _dicts(d.get("personas"), 3, {"name": "str", "age": "str", "description": "str", "pains": "list",
+                                                  "motivations": "list", "objections": "list", "where": "list", "message": "str"}),
+        "channels": [c for c in channels if c["platform"]],
+        "content_pillars": [p for p in pillars if p["name"]],
+        "offers": _dicts(d.get("offers"), 5, {"title": "str", "description": "str", "when": "str"}),
+        "budget": {"monthly_total": round(monthly, 2), "note": str(budget.get("note") or ""),
+                   "split": _shares(_dicts(budget.get("split"), 6, {"item": "str", "pct": "num", "note": "str"}), "pct")},
+        "roadmap": roadmap,
+        "quick_wins": _strs(d.get("quick_wins"), 7),
+        "kpis": _dicts(d.get("kpis"), 6, {"name": "str", "target": "str", "why": "str"}),
+        "risks": _dicts(d.get("risks"), 5, {"risk": "str", "mitigation": "str"}),
+        "competitors": _dicts(d.get("competitors"), 4, {"name": "str", "their_strength": "str", "our_angle": "str"}),
+        "prompt_version": prompts.PROMPT_VERSION,
+    }
+    if not out["summary"] or not out["content_pillars"] or not out["roadmap"]:
+        raise AIError("invalid_json", "الاستراتيجية رجعت ناقصة، جرب تاني")
+    return out
+
+
+def generate_followups(db: Session, brand: Brand) -> list[dict]:
+    """Reads the website (best effort) and asks the AI for 4 sector-specific follow-up questions."""
+    d = dict(brand.discovery or {})
+    answers = d.get("answers") or {}
+    site = answers.get("website")
+    if site and d.get("website_url") != site:
+        try:
+            d["website_text"], d["website_error"] = fetch_text(site), ""
+        except WebsiteError as exc:
+            d["website_text"], d["website_error"] = "", str(exc)
+        d["website_url"] = site
+    brief = brand.brief or {}
+    data = complete_json(db, prompts.discovery_followups(brief, disc.as_text({**d, "followups": []})),
+                         company_id=brand.company_id, brand_id=brand.id, feature="discovery", tier="fast",
+                         mock=lambda: mock.followups(), max_tokens=1200)
+    items = data if isinstance(data, list) else (data.get("questions") if isinstance(data, dict) else None) or []
+    old = {f["question"]: f.get("answer", "") for f in d.get("followups") or []}
+    qs = [{"question": str(x["question"]).strip()[:300], "why": str(x.get("why") or "")[:300],
+           "answer": old.get(str(x["question"]).strip(), "")}
+          for x in items if isinstance(x, dict) and x.get("question")][:4]
+    if not qs:
+        raise AIError("invalid_json", "الـ AI ما رجّعش أسئلة")
+    d["followups"] = qs
+    brand.discovery = d
+    db.commit()
+    return qs
+
+
+def generate_strategy(db: Session, brand: Brand) -> dict:
+    answers = (brand.discovery or {}).get("answers") or {}
+    missing = disc.missing_required(answers)
+    if missing:
+        raise AIError("discovery_incomplete", "كمّل الأسئلة الأساسية في الدراسة الأول")
+    brief = brand.brief or {}
+    currency = MARKETS.get(brief.get("market"), MARKETS["EG"])["currency"]
+    today = timing.now_local(timing.brand_tz(brief)).date().isoformat()
+    data = complete_json(db, prompts.strategy(brief, disc.as_text(brand.discovery), currency, today),
+                         company_id=brand.company_id, brand_id=brand.id, feature="strategy", tier="quality",
+                         mock=lambda: mock.strategy(), max_tokens=6000)
+    st = normalize_strategy(data)
+    st["currency"] = currency
+    st["created_at"] = today
+    brand.strategy = st
+    if brand.dna:  # keep the identity's pillars in sync so the content follows the strategy
+        brand.dna = {**brand.dna, "pillars": [{"name": p["name"], "share": p["share"]} for p in st["content_pillars"]]}
+    db.commit()
+    return st
+
+
+def posts_per_month(brand: Brand, default: int = 12) -> int:
+    """Monthly post count from the strategy's cadence (owned channels share the same posts)."""
+    chans = (brand.strategy or {}).get("channels") or []
+    if not chans:
+        return default
+    weekly = max(c["posts_per_week"] for c in chans)
+    return max(4, min(30, round(weekly * 4.3)))
+
+
 def generate_dna(db: Session, brand: Brand) -> dict:
     brief = brand.brief or {}
-    data = complete_json(db, prompts.brand_dna(brief), company_id=brand.company_id, brand_id=brand.id,
+    data = complete_json(db, prompts.brand_dna(brief, brand_context(brand)), company_id=brand.company_id, brand_id=brand.id,
                          feature="dna", tier="quality", mock=lambda: mock.brand_dna(brief))
     dna = normalize_dna(data, (brief.get("name") or "").strip())
+    if (brand.strategy or {}).get("content_pillars"):  # the agreed strategy wins over the identity's guess
+        dna["pillars"] = [{"name": p["name"], "share": p["share"]} for p in brand.strategy["content_pillars"]]
     brand.dna = dna
     brand.name = dna["names"][0]["ar"]
     db.commit()
@@ -84,7 +247,8 @@ def _clean_post(x: dict, days: int) -> dict | None:
 def clean_design(x: dict) -> dict:
     layout = x.get("layout") if x.get("layout") in LAYOUTS else "bold"
     return {"subheadline": str(x.get("subheadline") or "")[:120], "badge": str(x.get("badge") or "")[:30],
-            "layout": layout, "visual_prompt": str(x.get("visual_prompt") or "")[:600]}
+            "layout": layout, "visual_prompt": str(x.get("visual_prompt") or "")[:600],
+            "photo_query": str(x.get("photo_query") or "")[:80]}
 
 
 def generate_calendar(db: Session, brand: Brand, year: int, month: int, count: int = 12) -> list[Post]:
@@ -93,7 +257,7 @@ def generate_calendar(db: Session, brand: Brand, year: int, month: int, count: i
     brief = brand.brief or {}
     days = pycal.monthrange(year, month)[1]
     occ = occasions_for(year, month, brief.get("market", "EG"))
-    data = complete_json(db, prompts.calendar(brief, brand.dna, year, month, days, occ, count),
+    data = complete_json(db, prompts.calendar(brief, brand.dna, year, month, days, occ, count, brand_context(brand)),
                          company_id=brand.company_id, brand_id=brand.id, feature="calendar", tier="quality",
                          mock=lambda: mock.calendar(days, occ, count))
     items = data if isinstance(data, list) else (data.get("posts") if isinstance(data, dict) else None) or []
@@ -134,7 +298,7 @@ def plan_ads(db: Session, brand: Brand, objective: str, budget: float, days: int
     platforms = [p for p in platforms if p in AD_PLATFORMS] or [AD_PLATFORMS[0]]
     brief = brand.brief or {}
     currency = MARKETS.get(brief.get("market"), MARKETS["EG"])["currency"]
-    data = complete_json(db, prompts.ads_plan(brief, brand.dna, objective, budget, currency, days, platforms),
+    data = complete_json(db, prompts.ads_plan(brief, brand.dna, objective, budget, currency, days, platforms, brand_context(brand)),
                          company_id=brand.company_id, brand_id=brand.id, feature="ads", tier="quality",
                          mock=lambda: mock.ads_plan(platforms), max_tokens=3000)
     if not isinstance(data, dict):
@@ -175,7 +339,7 @@ def generate_posts_for_dates(db: Session, brand: Brand, dates: list[date], topic
     occ = []
     for d in dates:
         occ += [f"{d.isoformat()}: {o['title']}" for o in occasions_for(d.year, d.month, brief.get("market", "EG")) if o["day"] == d.day]
-    data = complete_json(db, prompts.posts_for_dates(brief, brand.dna, labels, occ, topic),
+    data = complete_json(db, prompts.posts_for_dates(brief, brand.dna, labels, occ, topic, brand_context(brand)),
                          company_id=brand.company_id, brand_id=brand.id, feature="calendar", tier="quality",
                          mock=lambda: mock.posts_for_dates(labels))
     items = data if isinstance(data, list) else (data.get("posts") if isinstance(data, dict) else None) or []

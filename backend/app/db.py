@@ -32,6 +32,7 @@ def configure(url: str) -> None:
 # until the project moves to Alembic.
 ADDED_COLUMNS = {
     "posts": {"design": "JSON", "bg_url": "VARCHAR(1000)", "metrics": "JSON", "metrics_at": "TIMESTAMP WITH TIME ZONE"},
+    "brands": {"discovery": "JSON", "strategy": "JSON"},
 }
 
 

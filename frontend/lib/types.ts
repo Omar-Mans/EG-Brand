@@ -28,7 +28,32 @@ export type Dna = {
   pillars: { name: string; share: number }[];
 };
 
-export type Brand = { id: string; name: string; brief: Brief; dna: Dna | null; created_at: string };
+export type Brand = {
+  id: string; name: string; brief: Brief; dna: Dna | null; created_at: string;
+  discovery: Discovery; strategy: Strategy | null;
+};
+
+export type Question = { id: string; label: string; type: "text" | "textarea" | "select" | "multi" | "url"; options?: string[]; required?: boolean };
+export type Section = { id: string; title: string; questions: Question[] };
+export type Answers = Record<string, string | string[]>;
+export type Followup = { question: string; why: string; answer: string };
+export type Discovery = { answers?: Answers; followups?: Followup[]; website_url?: string; website_text?: string; website_error?: string };
+
+type Kpi = { name: string; target: string; why?: string };
+export type Strategy = {
+  summary: string; currency: string; created_at: string;
+  diagnosis: { strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[] };
+  positioning: { statement: string; usp: string[]; proof_points: string[] };
+  personas: { name: string; age: string; description: string; pains: string[]; motivations: string[]; objections: string[]; where: string[]; message: string }[];
+  channels: { platform: string; role: string; priority: "high" | "medium" | "low"; posts_per_week: number; formats: string[]; why: string }[];
+  content_pillars: { name: string; share: number; goal: string; examples: string[] }[];
+  offers: { title: string; description: string; when: string }[];
+  budget: { monthly_total: number; note: string; split: { item: string; pct: number; note: string }[] };
+  roadmap: { phase: string; goal: string; actions: string[]; kpis: Kpi[] }[];
+  quick_wins: string[]; kpis: Kpi[];
+  risks: { risk: string; mitigation: string }[];
+  competitors: { name: string; their_strength: string; our_angle: string }[];
+};
 
 export type Layout = "photo_overlay" | "photo_split" | "bold" | "offer" | "minimal" | "quote";
 
@@ -37,6 +62,8 @@ export type PostDesign = {
   badge?: string;
   layout?: Layout;
   visual_prompt?: string;
+  photo_query?: string;
+  photo_credit?: { name: string; url: string; source: string };
   plan?: { local_at: string; platforms: string[] };
 };
 
