@@ -127,7 +127,7 @@ export default function PostCard({ post, dna, onChange }: { post: Post; dna: Dna
             </label>
             <div className="f"><span>صورة الخلفية</span>
               <div className="row" style={{ gap: 6 }}>
-                <button className="btn sm" type="button" disabled={!!busy} onClick={() => aiImage("stock")} title="صورة حقيقية مجانية من Pexels">صورة حقيقية</button>
+                <button className="btn sm" type="button" disabled={!!busy} onClick={() => aiImage("stock")} title="صورة حقيقية مجانية (Pixabay)">صورة حقيقية</button>
                 <button className="btn sm" type="button" disabled={!!busy} onClick={() => aiImage("ai")}>صورة بالـ AI</button>
                 <button className="btn sm" type="button" disabled={!!busy} onClick={() => fileRef.current?.click()}>ارفع صورتك</button>
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} />

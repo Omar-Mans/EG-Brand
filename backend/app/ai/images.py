@@ -83,8 +83,24 @@ def _pexels(client: httpx.Client, query: str, portrait: bool) -> tuple[bytes, st
     return data, ctype, {"name": photo.get("photographer", ""), "url": photo.get("url", ""), "source": "Pexels"}
 
 
+def _pixabay(client: httpx.Client, query: str, portrait: bool) -> tuple[bytes, str, dict]:
+    """Pixabay requires saving the file on our side (no hotlinking), which is what we do anyway."""
+    s = get_settings()
+    r = client.get("https://pixabay.com/api/", params={"key": s.pixabay_api_key, "q": query[:100], "image_type": "photo",
+                                                        "orientation": "vertical" if portrait else "all",
+                                                        "safesearch": "true", "per_page": 20})
+    if r.status_code >= 400:
+        raise AIError("image_failed", f"Pixabay رجّع {r.status_code}")
+    hits = r.json().get("hits") or []
+    if not hits:
+        raise AIError("no_photo", f"مفيش صور مناسبة لـ \"{query}\"، جرب كلمات تانية بالإنجليزي")
+    hit = random.choice(hits[:8])
+    data, ctype = _download(client, hit.get("largeImageURL") or hit["webformatURL"])
+    return data, ctype, {"name": hit.get("user", ""), "url": hit.get("pageURL", ""), "source": "Pixabay"}
+
+
 def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: str = "", source: str = "ai") -> str:
-    """source="ai" makes a new photo with the image model; source="stock" picks a real photo from Pexels."""
+    """source="ai" makes a new photo with the image model; source="stock" picks a real photo from Pixabay or Pexels."""
     s = get_settings()
     company = brand.company_id
     budget = s.default_monthly_ai_budget_usd
@@ -99,7 +115,7 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
     if source == "stock":
         backend = s.stock_backend
         if not backend:
-            raise AIError("no_stock", "حط PEXELS_API_KEY في الإعدادات عشان الصور الحقيقية تشتغل (مجاني)")
+            raise AIError("no_stock", "حط PIXABAY_API_KEY في الإعدادات عشان الصور الحقيقية تشتغل (مجاني)")
     else:
         backend = s.image_backend
     prompt = build_prompt(post, brand, custom_prompt)
@@ -113,8 +129,9 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
     else:
         try:
             with httpx.Client(timeout=180) as client:
-                if backend == "pexels":
-                    data, ctype, credit = _pexels(client, stock_query(post, brand, custom_prompt), post.format != "post")
+                if backend in ("pexels", "pixabay"):
+                    stock = _pexels if backend == "pexels" else _pixabay
+                    data, ctype, credit = stock(client, stock_query(post, brand, custom_prompt), post.format != "post")
                 elif backend == "fal":
                     r = client.post(f"https://fal.run/{s.fal_model}", headers={"Authorization": f"Key {s.fal_key}"},
                                     json={"prompt": prompt, "image_size": {"width": w, "height": h}, "num_images": 1})

@@ -99,6 +99,10 @@ class FakeClient:
         return httpx.Response(200, json={"result": {"image": base64.b64encode(b"\xff\xd8\xffjpeg").decode()}, "success": True})
 
     def get(self, url, **kw):
+        if "pixabay.com/api" in url:
+            assert kw["params"]["orientation"] == "all" and kw["params"]["key"] == "pb"
+            return httpx.Response(200, json={"hits": [{"user": "Sara", "pageURL": "https://pixabay.com/p/2",
+                                                       "largeImageURL": "https://pixabay.com/get/2.jpg"}]})
         if "api.pexels.com" in url:
             assert kw["params"]["orientation"] == "square"
             return httpx.Response(200, json={"photos": [{"photographer": "Ali", "url": "https://pexels.com/p/1",
@@ -122,7 +126,12 @@ def test_free_photo_providers(client, monkeypatch):
     monkeypatch.setattr(s, "image_provider", "cloudflare")
     run_job(client, h, client.post(f"/api/posts/{post['id']}/background", headers=h, json={}).json())
 
-    monkeypatch.setattr(s, "pexels_api_key", "k")
+    monkeypatch.setattr(s, "pixabay_api_key", "pb")
+    run_job(client, h, client.post(f"/api/posts/{post['id']}/background", headers=h, json={"source": "stock"}).json())
+    p = next(x for x in client.get(f"/api/brands/{post['brand_id']}/posts?month=2026-11", headers=h).json() if x["id"] == post["id"])
+    assert p["design"]["photo_credit"] == {"name": "Sara", "url": "https://pixabay.com/p/2", "source": "Pixabay"}
+
+    monkeypatch.setattr(s, "pexels_api_key", "k")  # Pexels wins when both keys exist
     run_job(client, h, client.post(f"/api/posts/{post['id']}/background", headers=h, json={"source": "stock", "prompt": "car showroom"}).json())
     p = next(x for x in client.get(f"/api/brands/{post['brand_id']}/posts?month=2026-11", headers=h).json() if x["id"] == post["id"])
     assert p["bg_url"].endswith(".jpg") and p["design"]["photo_credit"]["name"] == "Ali"
@@ -135,7 +144,7 @@ def test_stock_without_key_explains(client, monkeypatch):
     monkeypatch.setattr(type(get_settings()), "stock_backend", property(lambda self: ""))
     job = client.post(f"/api/posts/{post['id']}/background", headers=h, json={"source": "stock"}).json()
     jobs.process_jobs()
-    assert "PEXELS_API_KEY" in client.get(f"/api/jobs/{job['id']}", headers=h).json()["error"]
+    assert "PIXABAY_API_KEY" in client.get(f"/api/jobs/{job['id']}", headers=h).json()["error"]
 
 
 def test_cron_tick_needs_secret(client, monkeypatch):

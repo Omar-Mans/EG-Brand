@@ -10,7 +10,7 @@
 | تخزين التصميمات | [Cloudflare R2](https://developers.cloudflare.com/r2/) | 10GB ومفيش رسوم تحميل | لازم يكون عام، عشان Instagram بينزّل الصورة من رابط |
 | الـ AI للكلام | [Groq](https://console.groq.com) | Free tier بحدود في الدقيقة واليوم | لو اتزنقت ضيف `GEMINI_API_KEY` كـ fallback (عنده Free tier برضه) |
 | صور الـ AI | [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) (FLUX schnell) | حصة يومية مجانية | نفس حساب R2 |
-| صور حقيقية | [Pexels API](https://www.pexels.com/api/) | مجاني، والاستخدام التجاري مسموح | المنصة بتحفظ اسم المصور وبتعرضه |
+| صور حقيقية | [Pixabay API](https://pixabay.com/api/docs/) | مجاني، والمفتاح بيطلع أول ما تسجّل، والاستخدام التجاري مسموح | المنصة بتنزّل الصورة عندها، زي ما شروطهم بتطلب، وبتعرض اسم المصور |
 | تشغيل المهام كل 5 دقايق | [cron-job.org](https://cron-job.org) | مجاني | بيصحّي Render وبينشر البوستات اللي جه ميعادها |
 
 ## 1) قاعدة البيانات (Neon)
@@ -47,7 +47,7 @@
    FRONTEND_URL=https://your-frontend.netlify.app
    PUBLIC_BASE_URL=https://your-api.onrender.com
    GROQ_API_KEY=...
-   PEXELS_API_KEY=...
+   PIXABAY_API_KEY=...
    CF_ACCOUNT_ID=...
    CF_API_TOKEN=...
    STORAGE_BACKEND=s3
@@ -59,7 +59,7 @@
    META_APP_ID=...
    META_APP_SECRET=...
    ```
-3. افتح `https://your-api.onrender.com/api/health`. لازم تلاقي `"ai":"live"` و `"images":"cloudflare"` و `"stock":"pexels"`.
+3. افتح `https://your-api.onrender.com/api/health`. لازم تلاقي `"ai":"live"` و `"images":"cloudflare"` و `"stock":"pixabay"`.
 
 > الديسك على Render المجاني بيتمسح مع كل تشغيل، عشان كده لازم `STORAGE_BACKEND=s3`.
 

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     cf_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
     # Real stock photos (free for commercial use, no attribution required)
     pexels_api_key: str = ""
+    pixabay_api_key: str = ""
 
     # External scheduler (e.g. cron-job.org) can call /api/cron/tick when free hosting sleeps
     cron_secret: str = ""
@@ -84,6 +85,8 @@ class Settings(BaseSettings):
     def stock_backend(self) -> str:
         if self.pexels_api_key:
             return "pexels"
+        if self.pixabay_api_key:
+            return "pixabay"
         return "mock" if not self.ai_live else ""
 
     @property
