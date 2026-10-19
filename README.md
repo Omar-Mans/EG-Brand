@@ -53,6 +53,8 @@ npm install
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ```
 
+**عندك `.env` قديم؟** شغّل `powershell -ExecutionPolicy Bypass -File scripts\update-env.ps1` (Windows). بيضيف الإعدادات الجديدة الناقصة من غير ما يلمس مفاتيحك.
+
 **من غير أي مفاتيح** كل حاجة شغالة: الـ AI بيرجّع بيانات تجريبية ثابتة، والحسابات بتتربط ربط تجريبي. ده مناسب للتطوير والـ tests.
 
 ### تشغيل الـ AI الحقيقي
