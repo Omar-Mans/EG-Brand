@@ -99,8 +99,9 @@ def _pixabay(client: httpx.Client, query: str, portrait: bool) -> tuple[bytes, s
     return data, ctype, {"name": hit.get("user", ""), "url": hit.get("pageURL", ""), "source": "Pixabay"}
 
 
-def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: str = "", source: str = "ai") -> str:
-    """source="ai" makes a new photo with the image model; source="stock" picks a real photo from Pixabay or Pexels."""
+def make_photo(db: Session, brand: Brand, *, prompt: str, query: str, size: tuple[int, int], source: str = "ai") -> tuple[str, dict | None]:
+    """One background photo: source="ai" generates it, source="stock" picks a real photo (Pixabay or Pexels).
+    Returns (stored url, credit or None). Checks the AI budget and records the call."""
     s = get_settings()
     company = brand.company_id
     budget = s.default_monthly_ai_budget_usd
@@ -118,8 +119,7 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
             raise AIError("no_stock", "حط PIXABAY_API_KEY في الإعدادات عشان الصور الحقيقية تشتغل (مجاني)")
     else:
         backend = s.image_backend
-    prompt = build_prompt(post, brand, custom_prompt)
-    w, h = _size(post)
+    w, h = size
     started = time.monotonic()
     cost = 0.0
     credit = None
@@ -131,7 +131,7 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
             with httpx.Client(timeout=180) as client:
                 if backend in ("pexels", "pixabay"):
                     stock = _pexels if backend == "pexels" else _pixabay
-                    data, ctype, credit = stock(client, stock_query(post, brand, custom_prompt), post.format != "post")
+                    data, ctype, credit = stock(client, query, h > w)
                 elif backend == "fal":
                     r = client.post(f"https://fal.run/{s.fal_model}", headers={"Authorization": f"Key {s.fal_key}"},
                                     json={"prompt": prompt, "image_size": {"width": w, "height": h}, "num_images": 1})
@@ -154,6 +154,13 @@ def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: st
     url = save_image(data, company, ext, ctype)
     db.add(UsageEvent(company_id=company, brand_id=brand.id, feature="image", model=backend, cost_usd=cost,
                       latency_ms=int((time.monotonic() - started) * 1000), ok=True))
+    return url, credit
+
+
+def generate_background(db: Session, brand: Brand, post: Post, custom_prompt: str = "", source: str = "ai") -> str:
+    """source="ai" makes a new photo with the image model; source="stock" picks a real photo from Pixabay or Pexels."""
+    url, credit = make_photo(db, brand, prompt=build_prompt(post, brand, custom_prompt),
+                             query=stock_query(post, brand, custom_prompt), size=_size(post), source=source)
     post.bg_url = url
     design = dict(post.design or {})
     if credit:

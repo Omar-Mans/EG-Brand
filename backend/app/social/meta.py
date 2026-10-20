@@ -155,21 +155,39 @@ def publish_facebook(page_id: str, page_token: str, image_url: str, caption: str
 
 
 @_network_safe
-def publish_instagram(ig_user_id: str, token: str, image_url: str, caption: str, fmt: str = "post") -> str:
-    params = {"image_url": image_url, "access_token": token}
-    if fmt == "story":
-        params["media_type"] = "STORIES"
+def publish_facebook_video(page_id: str, page_token: str, video_url: str, caption: str) -> str:
+    """Facebook downloads the MP4 from the public URL and posts it on the page."""
+    with httpx.Client(timeout=180) as c:
+        data = _check(c.post(f"{_graph()}/{page_id}/videos", data={
+            "file_url": video_url, "description": caption, "access_token": page_token}))
+    return data.get("id", "")
+
+
+@_network_safe
+def publish_instagram(ig_user_id: str, token: str, image_url: str, caption: str, fmt: str = "post", video_url: str | None = None) -> str:
+    params = {"access_token": token}
+    if video_url:  # reels (or a video story) need a public MP4 that Instagram downloads and processes
+        params.update(video_url=video_url, media_type="STORIES" if fmt == "story" else "REELS")
+        if fmt != "story":
+            params.update(caption=caption, share_to_feed="true")
     else:
-        params["caption"] = caption  # reels need video; images go out as feed posts
-    with httpx.Client(timeout=60) as c:
+        params["image_url"] = image_url
+        if fmt == "story":
+            params["media_type"] = "STORIES"
+        else:
+            params["caption"] = caption  # without a video, a reel goes out as a feed image
+    tries, wait = (60, 4) if video_url else (10, 2)
+    with httpx.Client(timeout=120) as c:
         creation_id = _check(c.post(f"{_graph()}/{ig_user_id}/media", data=params))["id"]
-        for _ in range(10):  # wait until the container is ready
+        for _ in range(tries):  # wait until the container is ready (videos take a while)
             status = _check(c.get(f"{_graph()}/{creation_id}", params={"fields": "status_code", "access_token": token}))
             if status.get("status_code") in (None, "FINISHED"):
                 break
             if status.get("status_code") == "ERROR":
-                raise MetaError("Instagram رفض الصورة")
-            time.sleep(2)
+                raise MetaError("Instagram رفض " + ("الفيديو" if video_url else "الصورة"))
+            time.sleep(wait)
+        else:
+            raise MetaError("Instagram لسه بيجهز الفيديو، هنحاول تاني")
         data = _check(c.post(f"{_graph()}/{ig_user_id}/media_publish", data={"creation_id": creation_id, "access_token": token}))
     return data.get("id", "")
 

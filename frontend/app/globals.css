@@ -112,3 +112,10 @@ ol.clean { margin: 0; padding-inline-start: 22px; display: flex; flex-direction:
   .tag { print-color-adjust: exact; -webkit-print-color-adjust: exact }
   .tag.gold { background: #FBF1DA; color: #7A5300 } .tag.ok { background: #E3F4EA; color: #1D7A4A }
 }
+.reelbox { border: 1px solid var(--gold); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--panel) }
+.scenes { display: flex; flex-direction: column; gap: 10px }
+.scene { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding-top: 10px }
+.scene input, .scene textarea { margin-bottom: 4px }
+canvas.reelthumb { width: 96px; flex: none; border-radius: 8px; aspect-ratio: 9 / 16 }
+.reelvideo { display: flex; flex-direction: column; gap: 8px; align-items: center }
+.reelvideo video, video.lockedvideo { width: 100%; max-width: 320px; border-radius: 12px; background: #000; aspect-ratio: 9 / 16 }

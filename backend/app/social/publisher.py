@@ -16,6 +16,7 @@ def publish_post(db: Session, post: Post) -> dict:
     """Returns {platform: {"ok": bool, "id"|"error": str}} for every platform on the post."""
     results: dict = {}
     caption = post.caption + ("\n\n" + " ".join(post.hashtags) if post.hashtags else "")
+    video = post.video_url if post.format in ("reel", "story") else None  # a rendered reel goes out as video
     for platform in post.platforms or []:
         account = db.scalar(select(SocialAccount).where(
             SocialAccount.company_id == post.company_id, SocialAccount.platform == platform))
@@ -27,14 +28,16 @@ def publish_post(db: Session, post: Post) -> dict:
                 results[platform] = {"ok": True, "id": f"mock_{uuid.uuid4().hex[:10]}"}
             elif platform not in SUPPORTED_LIVE:
                 results[platform] = {"ok": False, "error": "المنصة دي لسه مش مدعومة في النشر"}
-            elif not post.image_url:
+            elif not post.image_url and not video:
                 results[platform] = {"ok": False, "error": "مفيش صورة للبوست"}
             elif platform == "facebook":
-                results[platform] = {"ok": True, "id": meta.publish_facebook(
-                    account.external_id, decrypt(account.access_token_enc), post.image_url, caption)}
+                token = decrypt(account.access_token_enc)
+                pid = (meta.publish_facebook_video(account.external_id, token, video, caption) if video
+                       else meta.publish_facebook(account.external_id, token, post.image_url, caption))
+                results[platform] = {"ok": True, "id": pid}
             else:
                 results[platform] = {"ok": True, "id": meta.publish_instagram(
-                    account.external_id, decrypt(account.access_token_enc), post.image_url, caption, post.format)}
+                    account.external_id, decrypt(account.access_token_enc), post.image_url, caption, post.format, video)}
         except meta.MetaError as exc:
             results[platform] = {"ok": False, "error": str(exc)}
     return results

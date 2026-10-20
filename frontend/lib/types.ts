@@ -65,6 +65,16 @@ export type PostDesign = {
   photo_query?: string;
   photo_credit?: { name: string; url: string; source: string };
   plan?: { local_at: string; platforms: string[] };
+  reel?: Reel;
+};
+
+export type ReelScene = {
+  text: string; sub: string; voice: string; photo_query?: string; visual_prompt?: string;
+  bg_url: string | null; credit?: { name: string; url: string; source: string } | null;
+};
+export type Reel = {
+  voice: string; music: string; music_url?: string | null; scenes: ReelScene[]; outro_voice: string;
+  duration?: number; rendered_at?: string;
 };
 
 export type PostStatus = "draft" | "scheduled" | "publishing" | "published" | "failed";
@@ -89,6 +99,7 @@ export type Post = {
   metrics_at: string | null;
   approved: boolean;
   image_url: string | null;
+  video_url: string | null;
   status: PostStatus;
   scheduled_at: string | null;
   platforms: string[];

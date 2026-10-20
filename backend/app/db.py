@@ -31,7 +31,7 @@ def configure(url: str) -> None:
 # Columns added after the first release. create_all() does not alter existing tables, so add them here
 # until the project moves to Alembic.
 ADDED_COLUMNS = {
-    "posts": {"design": "JSON", "bg_url": "VARCHAR(1000)", "metrics": "JSON", "metrics_at": "TIMESTAMP WITH TIME ZONE"},
+    "posts": {"design": "JSON", "bg_url": "VARCHAR(1000)", "video_url": "VARCHAR(1000)", "metrics": "JSON", "metrics_at": "TIMESTAMP WITH TIME ZONE"},
     "brands": {"discovery": "JSON", "strategy": "JSON"},
 }
 

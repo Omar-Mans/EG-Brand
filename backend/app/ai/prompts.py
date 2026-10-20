@@ -156,3 +156,20 @@ Reply with ONLY one JSON object with these keys:
 "competitors":[{{"name":"competitor name from the client or 'منافس مباشر'","their_strength":"","our_angle":"how we beat them"}}]}}
 Rules: 2 or 3 personas; 2 to 4 channels ranked by priority; exactly 4 content pillars whose shares sum to 100; exactly 3 roadmap phases
 (الشهر الأول, الشهر التاني, الشهر التالت); budget.monthly_total must respect the client's stated ad budget."""
+
+
+def reel_script(brief: dict, dna: dict, post: dict, dialect: str, context: str = "") -> str:
+    s = _brand_summary(dna)
+    return f"""You are a senior short-form video creator writing a 15-25 second Instagram/TikTok reel for the Arabic brand "{s["name"].get("ar", "")}".
+Business: {brief.get("idea", "")}. Tone: {s["tone"]}. Don't: {"; ".join(s["dont"] or [])}.
+{_ctx(context)}The reel is based on this planned post: {json.dumps(post, ensure_ascii=False)}
+The voice-over is read by a text-to-speech voice in this dialect: {DIALECTS.get(dialect, DIALECTS["msa"])}. Write the spoken lines exactly as people
+talk in that dialect, short and natural, with no emojis, hashtags, symbols or English words (write numbers as words if they are short).
+
+Structure: scene 1 is the hook (a question or a bold specific claim, understood in 2 seconds); the middle scenes show one benefit or proof each;
+the last scene is the offer or the reason to act now. On-screen text is short and big; the voice says more than the screen.
+Reply with ONLY one JSON object:
+{{"scenes":[{{"text":"Arabic on-screen text, max 6 words","sub":"optional Arabic line, max 8 words, or empty","voice":"spoken line in the dialect, 6-16 words",
+"photo_query":"2-4 English keywords for a real stock photo of this scene","visual_prompt":"English photo description for an AI image, photorealistic, no text"}}],
+"outro_voice":"short spoken call to action in the dialect, max 8 words"}}
+Rules: 3 to 5 scenes. Never invent prices, discounts, numbers or guarantees that are not in the post or the business facts above."""

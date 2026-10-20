@@ -16,7 +16,7 @@ def post_out(p: Post) -> dict:
             "pillar": p.pillar, "occasion": p.occasion, "headline": p.headline, "caption": p.caption,
             "hashtags": p.hashtags or [], "cta": p.cta, "template": p.template, "approved": p.approved,
             "design": p.design or {}, "bg_url": p.bg_url, "metrics": p.metrics or {}, "metrics_at": iso(p.metrics_at),
-            "image_url": p.image_url, "status": p.status, "scheduled_at": iso(p.scheduled_at),
+            "image_url": p.image_url, "video_url": p.video_url, "status": p.status, "scheduled_at": iso(p.scheduled_at),
             "platforms": p.platforms or [], "publish_results": p.publish_results or {}, "error": p.error}
 
 

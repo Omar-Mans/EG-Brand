@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .db import init_db
-from .routers import ads, auth, brands, jobs, posts, social, usage
+from .routers import ads, auth, brands, jobs, posts, reels, social, usage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="EG Brand API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in s.cors_origins.split(",") if o.strip()],
                        allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-    for r in (auth, brands, posts, social, ads, usage, jobs):
+    for r in (auth, brands, posts, reels, social, ads, usage, jobs):
         app.include_router(r.router)
     if s.storage_backend == "local":
         os.makedirs(s.upload_dir, exist_ok=True)
@@ -42,7 +42,7 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     def health():
         return {"ok": True, "ai": "live" if s.ai_live else "mock", "social": "live" if s.social_live else "mock",
-                "images": s.image_backend, "stock": s.stock_backend or "off"}
+                "images": s.image_backend, "stock": s.stock_backend or "off", "voice": s.voice_backend}
 
     @app.post("/api/cron/tick")
     def cron_tick(x_cron_secret: str = Header(default="")):

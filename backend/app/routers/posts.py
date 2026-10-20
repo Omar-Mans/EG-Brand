@@ -33,6 +33,7 @@ class PostPatch(BaseModel):
     subheadline: str | None = Field(default=None, max_length=200)
     badge: str | None = Field(default=None, max_length=40)
     layout: str | None = None
+    format: str | None = Field(default=None, pattern="^(post|reel|story)$")
 
 
 class BackgroundIn(BaseModel):
@@ -74,7 +75,7 @@ def patch_post(post_id: str, body: PostPatch, user: User = Depends(current_user)
             if k == "layout" and v not in LAYOUTS:
                 raise HTTPException(422, "شكل التصميم مش معروف")
             design[k] = v
-    design_changed = design != (post.design or {}) or any(k in data for k in ("headline", "cta", "template"))
+    design_changed = design != (post.design or {}) or any(k in data for k in ("headline", "cta", "template", "format"))
     post.design = design
     for k, v in data.items():
         setattr(post, k, v)

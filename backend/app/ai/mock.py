@@ -119,3 +119,14 @@ def strategy() -> dict:
         "risks": [{"risk": "قلة المحتوى المصور", "mitigation": "يوم تصوير كل أسبوعين"}],
         "competitors": [{"name": "منافس مباشر", "their_strength": "متابعين أكتر", "our_angle": "شفافية السعر"}],
     }
+
+
+def reel_script() -> dict:
+    return {"scenes": [
+        {"text": "بتدور على عربية مضمونة؟", "sub": "", "voice": "بتدور على عربية مستعملة وخايف من العيوب؟",
+         "photo_query": "used car showroom", "visual_prompt": "modern used car showroom, soft light"},
+        {"text": "فحص 150 نقطة", "sub": "تقرير مكتوب لكل عربية", "voice": "كل عربية عندنا بتعدي فحص كامل وبتاخد تقريرها مكتوب",
+         "photo_query": "car inspection mechanic", "visual_prompt": "mechanic inspecting a car engine"},
+        {"text": "ضمان 6 شهور", "sub": "", "voice": "ومعاها ضمان ست شهور على المكينة والفتيس",
+         "photo_query": "happy customer car keys", "visual_prompt": "customer receiving car keys"},
+    ], "outro_voice": "كلمنا على الواتساب النهارده"}

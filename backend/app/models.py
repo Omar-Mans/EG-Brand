@@ -71,6 +71,7 @@ class Post(Base):
     bg_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # background photo (AI or uploaded)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # final rendered design
+    video_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # rendered reel (MP4)
     # Publishing
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)  # draft|scheduled|publishing|published|failed
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)

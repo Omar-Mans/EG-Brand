@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, waitJob } from "@/lib/api";
 import { FORMAT_LABEL, LAYOUTS, MONTHS, PLATFORMS, STATUS_LABEL } from "@/lib/catalog";
 import { canvasBlob, downloadCanvas, drawPost, nameOf } from "@/lib/render";
+import ReelEditor from "./ReelEditor";
 import type { Dna, Job, Post } from "@/lib/types";
 
 type Draft = { headline: string; caption: string; cta: string; subheadline: string; badge: string };
@@ -160,6 +161,9 @@ export default function PostCard({ post, dna, onChange }: { post: Post; dna: Dna
           <label className="f">الكابشن
             <textarea rows={3} value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} onBlur={saveText} />
           </label>
+          {post.format === "reel"
+            ? <ReelEditor post={post} dna={dna} onChange={onChange} />
+            : <button className="btn sm" type="button" disabled={!!busy} onClick={() => patch({ format: "reel" })}>حوّله لريل بصوت وموسيقى</button>}
           <details>
             <summary>عدّل الكلام بالـ AI</summary>
             <div className="row" style={{ marginTop: 8 }}>
@@ -169,6 +173,7 @@ export default function PostCard({ post, dna, onChange }: { post: Post; dna: Dna
           </details>
         </>
       )}
+      {locked && post.video_url && <video className="lockedvideo" src={post.video_url} controls playsInline preload="metadata" aria-label="فيديو الريل" />}
       {locked && <p className="small muted" style={{ whiteSpace: "pre-wrap" }}>{post.caption}</p>}
 
       {(busy || error) && <p className={`status small ${error ? "err" : ""}`}>{error || busy}</p>}

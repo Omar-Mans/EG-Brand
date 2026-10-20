@@ -45,7 +45,7 @@ export const AD_OBJECTIVES = ["وعي بالبراند", "زيارات للمت�
 export const AD_PLATFORMS = ["Instagram + Facebook", "TikTok", "Snapchat", "Google"];
 export const FEATURE_LABEL: Record<string, string> = {
   dna: "هوية البراند", calendar: "خطة المحتوى", regen: "إعادة صياغة بوست", ads: "خطة إعلانية", agent: "أوامر الـ Agent", image: "صورة بالـ AI",
-  discovery: "أسئلة الدراسة", strategy: "الاستراتيجية",
+  discovery: "أسئلة الدراسة", strategy: "الاستراتيجية", reel: "سكريبت ريل", voice: "صوت الريلز (حروف)",
 };
 export const LAYOUTS: Record<string, string> = {
   photo_overlay: "صورة كاملة", photo_split: "صورة + لون", bold: "عنوان جريء", offer: "عرض وخصم", minimal: "هادي وفخم", quote: "رأي عميل",

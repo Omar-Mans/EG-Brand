@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .ai import images, services
 from .ai.catalog import PHOTO_LAYOUTS
 from .ai.llm import AIError
+from .reels import service as reels
 from .db import SessionLocal, is_postgres
 from .models import Brand, Job, Post
 from .social.publisher import publish_post
@@ -77,6 +78,16 @@ def run_job(db: Session, job: Job) -> dict:
             raise AIError("not_found", "البوست مش موجود")
         bg = images.generate_background(db, _brand(db, job), post, p.get("prompt", ""), p.get("source", "ai"))
         return {"post_id": post.id, "bg_url": bg}
+    if job.kind in ("reel_script", "reel_photo", "reel_render"):
+        post = db.get(Post, p["post_id"])
+        if not post or post.company_id != job.company_id:
+            raise AIError("not_found", "البوست مش موجود")
+        brand = _brand(db, job)
+        if job.kind == "reel_script":
+            return {"reel": reels.generate_script(db, brand, post, p.get("voice"))}
+        if job.kind == "reel_photo":
+            return {"scene": reels.scene_photo(db, brand, post, int(p["index"]), p.get("source", "stock"), p.get("prompt", ""))}
+        return reels.render_reel(db, brand, post, p["overlays"])
     if job.kind == "followups":
         return {"followups": services.generate_followups(db, _brand(db, job))}
     if job.kind == "strategy":

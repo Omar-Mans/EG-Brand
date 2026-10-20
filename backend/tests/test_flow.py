@@ -15,7 +15,7 @@ def run_job(client, h, job):
     jobs.process_jobs()
     r = client.get(f"/api/jobs/{job['id']}", headers=h)
     assert r.status_code == 200
-    assert r.json()["status"] == "done", r.json()
+    assert r.json()["status"] == "done", r.json().get("error")
     return r.json()
 
 

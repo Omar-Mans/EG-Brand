@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     # External scheduler (e.g. cron-job.org) can call /api/cron/tick when free hosting sleeps
     cron_secret: str = ""
 
+    # Arabic voice-over for reels. auto = azure (official free tier) if a key is set, else edge (free, no key), else mock
+    tts_provider: str = "auto"  # auto | azure | edge | mock
+    azure_speech_key: str = ""
+    azure_speech_region: str = "uaenorth"
+    ffmpeg_bin: str = "ffmpeg"
+
     # Storage for rendered images (must be publicly reachable for Instagram publishing)
     storage_backend: str = "local"  # local | s3
     upload_dir: str = "./uploads"
@@ -88,6 +94,14 @@ class Settings(BaseSettings):
         if self.pixabay_api_key:
             return "pixabay"
         return "mock" if not self.ai_live else ""
+
+    @property
+    def voice_backend(self) -> str:
+        if self.tts_provider != "auto":
+            return self.tts_provider
+        if self.azure_speech_key:
+            return "azure"
+        return "edge" if self.ai_live else "mock"
 
     @property
     def social_live(self) -> bool:

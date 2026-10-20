@@ -333,3 +333,99 @@ export async function downloadCanvas(cv: HTMLCanvasElement, filename: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/* ---------- Reels: one transparent text layer per scene + an opaque outro card (1080x1920). ----------
+   ffmpeg moves the photo and fades these layers in, so the Arabic text is always drawn by the browser. */
+
+export type ReelSceneLike = { text: string; sub?: string; bg_url?: string | null };
+const RW = 1080, RH = 1920;
+
+/** Words on solid rounded boxes, line by line, like modern reel captions. Returns the bottom y. */
+function captionBoxes(ctx: CanvasRenderingContext2D, text: string, cy: number, size: number, fam: string, bg: string, fg: string) {
+  setFont(ctx, 800, size, fam);
+  let lines = wrap(ctx, text, RW - 260);
+  while (lines.length > 3 && size > 64) { size -= 6; setFont(ctx, 800, size, fam); lines = wrap(ctx, text, RW - 260); }
+  const lh = size * 1.42, padX = size * 0.42;
+  let y = cy - (lines.length * lh) / 2;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  lines.forEach((l) => {
+    const w = ctx.measureText(l).width + padX * 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,.28)"; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+    rrect(ctx, RW / 2 - w / 2, y + 6, w, lh - 12, size * 0.28);
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = fg;
+    ctx.fillText(l, RW / 2, y + lh / 2 + 2);
+    y += lh;
+  });
+  return y;
+}
+
+export async function drawReelScene(cv: HTMLCanvasElement, dna: Dna, scene: ReelSceneLike, index: number, total: number, withPhoto = false) {
+  cv.width = RW; cv.height = RH;
+  const ctx = cv.getContext("2d")!;
+  const p = palette(dna);
+  await ensureFont(dna.font_ar, scene.text + nameOf(dna).ar);
+  await ensureFont("IBM Plex Sans Arabic", scene.sub || "نص");
+  ctx.clearRect(0, 0, RW, RH);
+  ctx.direction = "rtl";
+  if (withPhoto) { // preview only: the real video gets the moving photo from ffmpeg
+    const img = scene.bg_url ? await loadImage(scene.bg_url) : null;
+    if (img) drawCover(ctx, img, 0, 0, RW, RH);
+    else { ctx.fillStyle = p.dark; ctx.fillRect(0, 0, RW, RH); }
+  }
+  // soft shade top and bottom so white text and the platform's own buttons stay readable on any photo
+  let g = ctx.createLinearGradient(0, 0, 0, 420);
+  g.addColorStop(0, rgba(p.dark, 0.55)); g.addColorStop(1, rgba(p.dark, 0));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, RW, 420);
+  g = ctx.createLinearGradient(0, RH * 0.45, 0, RH);
+  g.addColorStop(0, rgba(p.dark, 0)); g.addColorStop(1, rgba(p.dark, 0.75));
+  ctx.fillStyle = g; ctx.fillRect(0, RH * 0.45, RW, RH * 0.55);
+
+  brandMark(ctx, dna, RW / 2, 190, "#FFFFFF", "center", 40);
+  const hook = index === 0;
+  const boxBg = hook ? p.accent : p.primary;
+  const bottom = captionBoxes(ctx, scene.text, hook ? RH * 0.46 : RH * 0.6, hook ? 104 : 88, dna.font_ar, boxBg, onColor(boxBg, p.dark, "#FFFFFF"));
+  if (scene.sub) {
+    setFont(ctx, 600, 46, "IBM Plex Sans Arabic");
+    ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "center";
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 18;
+    wrap(ctx, scene.sub, RW - 280).slice(0, 2).forEach((l, i) => ctx.fillText(l, RW / 2, bottom + 50 + i * 64));
+    ctx.restore();
+  }
+  // progress dots: where we are in the story
+  const dot = 14, gap = 14, w = total * dot + (total - 1) * gap;
+  for (let i = 0; i < total; i++) {
+    ctx.beginPath();
+    ctx.arc(RW / 2 + w / 2 - dot / 2 - i * (dot + gap), 268, dot / 2, 0, Math.PI * 2);
+    ctx.fillStyle = i === index ? "#FFFFFF" : "rgba(255,255,255,.4)"; ctx.fill();
+  }
+}
+
+export async function drawReelOutro(cv: HTMLCanvasElement, dna: Dna, cta: string) {
+  cv.width = RW; cv.height = RH;
+  const ctx = cv.getContext("2d")!;
+  const p = palette(dna), n = nameOf(dna);
+  await ensureFont(dna.font_ar, n.ar + cta);
+  await ensureFont(dna.font_en, n.en);
+  const g = ctx.createLinearGradient(0, 0, RW, RH);
+  g.addColorStop(0, p.primary); g.addColorStop(1, p.dark);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, RW, RH);
+  const fg = onColor(p.primary, p.dark, "#FFFFFF");
+  ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  rrect(ctx, RW / 2 - 130, 560, 260, 260, 64); ctx.fillStyle = rgba("#FFFFFF", 0.12); ctx.fill();
+  drawIcon(ctx, dna.icon, RW / 2, 690, 170, p.accent, 7);
+  ctx.fillStyle = fg;
+  fit(ctx, n.ar, 800, 132, dna.font_ar, RW - 200); ctx.fillText(n.ar, RW / 2, 960);
+  if (dna.tagline_ar) {
+    ctx.globalAlpha = 0.85; fit(ctx, dna.tagline_ar, 500, 50, dna.font_ar, RW - 220); ctx.fillText(dna.tagline_ar, RW / 2, 1080); ctx.globalAlpha = 1;
+  }
+  if (cta) {
+    setFont(ctx, 800, 54, "IBM Plex Sans Arabic");
+    const tw = Math.min(RW - 200, ctx.measureText(cta).width + 120), h = 120;
+    rrect(ctx, RW / 2 - tw / 2, 1210, tw, h, h / 2); ctx.fillStyle = p.accent; ctx.fill();
+    ctx.fillStyle = onColor(p.accent, p.dark, "#FFFFFF");
+    fit(ctx, cta, 800, 54, "IBM Plex Sans Arabic", tw - 80); ctx.fillText(cta, RW / 2, 1272);
+  }
+}
