@@ -78,13 +78,15 @@ def run_job(db: Session, job: Job) -> dict:
             raise AIError("not_found", "البوست مش موجود")
         bg = images.generate_background(db, _brand(db, job), post, p.get("prompt", ""), p.get("source", "ai"))
         return {"post_id": post.id, "bg_url": bg}
-    if job.kind in ("reel_script", "reel_photo", "reel_render"):
+    if job.kind in ("reel_script", "reel_photo", "reel_render", "talk_script"):
         post = db.get(Post, p["post_id"])
         if not post or post.company_id != job.company_id:
             raise AIError("not_found", "البوست مش موجود")
         brand = _brand(db, job)
         if job.kind == "reel_script":
-            return {"reel": reels.generate_script(db, brand, post, p.get("voice"))}
+            return {"reel": reels.generate_script(db, brand, post, p.get("voice"), p.get("style"), p.get("seconds"))}
+        if job.kind == "talk_script":
+            return {"talk": reels.generate_talk(db, brand, post, p.get("topic", ""), p.get("script", ""), int(p.get("seconds") or 30))}
         if job.kind == "reel_photo":
             return {"scene": reels.scene_photo(db, brand, post, int(p["index"]), p.get("source", "stock"), p.get("prompt", ""))}
         return reels.render_reel(db, brand, post, p["overlays"])

@@ -129,4 +129,12 @@ def reel_script() -> dict:
          "photo_query": "car inspection mechanic", "visual_prompt": "mechanic inspecting a car engine"},
         {"text": "ضمان 6 شهور", "sub": "", "voice": "ومعاها ضمان ست شهور على المكينة والفتيس",
          "photo_query": "happy customer car keys", "visual_prompt": "customer receiving car keys"},
-    ], "outro_voice": "كلمنا على الواتساب النهارده"}
+    ], "outro_voice": "كلمنا على الواتساب النهارده", "title": "عربية مضمونة بجد", "caption": "فحص كامل وضمان.\nكلمنا على الواتساب.",
+        "hashtags": ["#سيارات", "#ضمان"], "cta": "كلمنا واتساب"}
+
+
+def talk_script() -> dict:
+    return {"title": "3 حاجات تفحصها قبل ما تشتري", "hook": "قبل ما تشتري عربية مستعملة، اسمع الكلام ده.",
+            "lines": ["أول حاجة: اطلب تقرير فحص مكتوب.", "تاني حاجة: اسأل عن الضمان بالتفصيل.", "تالت حاجة: جرب العربية بنفسك."],
+            "cta": "ولو عايز عربية مفحوصة ومضمونة، كلمنا على الواتساب.", "broll": ["car inspection", "car keys handover"],
+            "caption": "3 حاجات مهمة قبل الشرا.", "hashtags": ["#سيارات"]}

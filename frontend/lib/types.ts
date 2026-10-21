@@ -67,14 +67,20 @@ export type PostDesign = {
   photo_credit?: { name: string; url: string; source: string };
   plan?: { local_at: string; platforms: string[] };
   reel?: Reel;
+  studio?: "montage" | "photo" | "talk";
 };
 
 export type ReelScene = {
   text: string; sub: string; voice: string; photo_query?: string; visual_prompt?: string;
-  bg_url: string | null; credit?: { name: string; url: string; source: string } | null;
+  bg_url: string | null; clip_url?: string | null; credit?: { name: string; url: string; source: string } | null;
+};
+export type Talk = {
+  topic: string; own: boolean; seconds: number; hook: string; lines: string[]; cta: string; broll: string[]; words: number; read_seconds: number;
 };
 export type Reel = {
   voice: string; music: string; music_url?: string | null; scenes: ReelScene[]; outro_voice: string;
+  style?: "photo" | "montage"; rhythm?: "calm" | "fast" | "cinematic"; captions?: boolean; seconds?: number;
+  talk?: Talk; raw?: { url: string; bytes: number; at: string }[];
   duration?: number; rendered_at?: string;
 };
 

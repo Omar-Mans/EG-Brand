@@ -5,14 +5,24 @@ import { API_URL, api, waitJob } from "@/lib/api";
 import { canvasBlob, drawReelOutro, drawReelScene } from "@/lib/render";
 import type { Dna, Job, Post, Reel, ReelScene } from "@/lib/types";
 
-type Options = { voices: Record<string, string>; music: Record<string, string>; voice_provider: string };
+type Options = {
+  voices: Record<string, string>; music: Record<string, string>; rhythms: Record<string, string>;
+  voice_provider: string; video_provider: string;
+};
 let optionsCache: Promise<Options> | null = null;
 const loadOptions = () => (optionsCache ||= api<Options>("/api/reels/options"));
 
-function ScenePreview({ dna, scene, index, total }: { dna: Dna; scene: ReelScene; index: number; total: number }) {
+function ScenePreview({ dna, scene, index, total, caption }: { dna: Dna; scene: ReelScene; index: number; total: number; caption: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => { if (ref.current) drawReelScene(ref.current, dna, scene, index, total, true); }, [dna, scene, index, total]);
-  return <canvas ref={ref} className="reelthumb" aria-label={`المشهد ${index + 1}: ${scene.text}`} />;
+  const clip = scene.clip_url || "";
+  useEffect(() => { if (ref.current) drawReelScene(ref.current, dna, scene, index, total, !clip, caption); }, [dna, scene, index, total, clip, caption]);
+  // a video scene shows the clip playing under the transparent text layer, like the final reel
+  return (
+    <div className="reelthumb">
+      {clip && <video src={clip} muted autoPlay loop playsInline preload="metadata" />}
+      <canvas ref={ref} aria-label={`المشهد ${index + 1}: ${scene.text}`} />
+    </div>
+  );
 }
 
 export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: Dna; onChange: (p: Post) => void }) {
@@ -23,6 +33,7 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const clipRefs = useRef<(HTMLInputElement | null)[]>([]);
   const musicRef = useRef<HTMLInputElement>(null);
   const sampleRef = useRef<HTMLAudioElement>(null);
 
@@ -50,7 +61,8 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
     await waitJob(await api<Job>(`/api/posts/${post.id}/reel/script`, { body: { voice: voice || reel?.voice } }));
     await reload();
   });
-  const photo = (i: number, source: "ai" | "stock") => run(source === "stock" ? "بندور على صورة حقيقية للمشهد…" : "الـ AI بيعمل صورة للمشهد…", async () => {
+  const photo = (i: number, source: "ai" | "stock" | "video") => run(
+    source === "video" ? "بندور على لقطة فيديو للمشهد…" : source === "stock" ? "بندور على صورة حقيقية للمشهد…" : "الـ AI بيعمل صورة للمشهد…", async () => {
     await waitJob(await api<Job>(`/api/posts/${post.id}/reel/scenes/${i}/photo`, { body: { source } }));
     await reload();
   });
@@ -58,6 +70,11 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
     const form = new FormData(); form.append("file", f);
     onChange(await api<Post>(`/api/posts/${post.id}/reel/scenes/${i}/upload`, { form }));
   });
+  const uploadClip = (i: number, f: File) => run("بنرفع الفيديو…", async () => {
+    const form = new FormData(); form.append("file", f);
+    onChange(await api<Post>(`/api/posts/${post.id}/reel/scenes/${i}/clip`, { form }));
+  });
+  const captionOf = (s: ReelScene) => (reel?.captions !== false && reel?.voice !== "none" ? s.voice : "");
   const uploadMusic = (f: File) => run("بنرفع الموسيقى…", async () => {
     const form = new FormData(); form.append("file", f);
     onChange(await api<Post>(`/api/posts/${post.id}/reel/music`, { form }));
@@ -68,12 +85,12 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
     const form = new FormData();
     const cv = document.createElement("canvas");
     for (let i = 0; i < scenes.length; i++) {
-      await drawReelScene(cv, dna, scenes[i], i, scenes.length);
+      await drawReelScene(cv, dna, scenes[i], i, scenes.length, false, captionOf(scenes[i]));
       form.append("overlays", await canvasBlob(cv), `scene-${i}.png`);
     }
     await drawReelOutro(cv, dna, post.cta);
     form.append("overlays", await canvasBlob(cv), "outro.png");
-    setBusy("بنعمل الفيديو: صور، وصوت، وموسيقى… (من نص دقيقة لـ 3 دقايق)");
+    setBusy(reel.style === "montage" ? "بنجمّع اللقطات ونعمل المونتاج والصوت والموسيقى… (من دقيقة لـ 4 دقايق)" : "بنعمل الفيديو: صور، وصوت، وموسيقى… (من نص دقيقة لـ 3 دقايق)");
     await waitJob(await api<Job>(`/api/posts/${post.id}/reel/render`, { form }), undefined, 600_000);
     await reload();
   });
@@ -130,7 +147,24 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
           </div>
           <input ref={musicRef} type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-m4a" hidden onChange={(e) => e.target.files?.[0] && uploadMusic(e.target.files[0])} />
         </label>
+        <label className="f">شكل المشاهد
+          <select value={reel.style || "photo"} onChange={(e) => patch({ style: e.target.value as Reel["style"] })} aria-label="شكل المشاهد">
+            <option value="montage">مونتاج لقطات فيديو حقيقية</option>
+            <option value="photo">صور بحركة كاميرا</option>
+          </select>
+        </label>
+        <label className="f">إيقاع المونتاج
+          <select value={reel.rhythm || "calm"} onChange={(e) => patch({ rhythm: e.target.value as Reel["rhythm"] })} aria-label="إيقاع المونتاج">
+            {Object.entries(opts?.rhythms || { calm: "هادي", fast: "سريع", cinematic: "سينمائي" }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
       </div>
+      {reel.voice !== "none" && (
+        <label className="row small" style={{ gap: 8 }}>
+          <input type="checkbox" checked={reel.captions !== false} onChange={(e) => patch({ captions: e.target.checked })} />
+          اكتب الكلام اللي بيتقال على الفيديو (ترجمة)
+        </label>
+      )}
       {reel.voice !== "none" && opts?.voice_provider === "edge" && (
         <p className="small muted">الصوت شغال دلوقتي بخدمة مجانية للتجربة. قبل العملاء اللي بيدفعوا حط مفتاح Azure Speech (مجاني برضه) في الإعدادات.</p>
       )}
@@ -138,7 +172,7 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
       <div className="scenes">
         {scenes.map((s, i) => (
           <div key={i} className="scene">
-            <ScenePreview dna={dna} scene={s} index={i} total={scenes.length} />
+            <ScenePreview dna={dna} scene={s} index={i} total={scenes.length} caption={captionOf(s)} />
             <div className="f" style={{ flex: 1 }}>
               <span>مشهد {i + 1}{i === 0 && " · الخطّاف"}</span>
               <input type="text" value={s.text} aria-label={`كلام المشهد ${i + 1} على الشاشة`} placeholder="الكلام على الشاشة"
@@ -150,13 +184,17 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
                   onChange={(e) => setScenes(scenes.map((x, j) => (j === i ? { ...x, voice: e.target.value } : x)))} onBlur={saveScenes} />
               )}
               <div className="row" style={{ gap: 6 }}>
+                <button className="btn sm" type="button" disabled={!!busy} onClick={() => photo(i, "video")}>لقطة فيديو</button>
+                <button className="btn sm" type="button" disabled={!!busy} onClick={() => clipRefs.current[i]?.click()}>ارفع فيديو</button>
+                <input ref={(el) => { clipRefs.current[i] = el; }} type="file" accept="video/mp4,video/quicktime,video/webm" hidden
+                  onChange={(e) => e.target.files?.[0] && uploadClip(i, e.target.files[0])} />
                 <button className="btn sm" type="button" disabled={!!busy} onClick={() => photo(i, "stock")}>صورة حقيقية</button>
                 <button className="btn sm" type="button" disabled={!!busy} onClick={() => photo(i, "ai")}>صورة بالـ AI</button>
                 <button className="btn sm" type="button" disabled={!!busy} onClick={() => fileRefs.current[i]?.click()}>ارفع صورتك</button>
                 <input ref={(el) => { fileRefs.current[i] = el; }} type="file" accept="image/png,image/jpeg,image/webp" hidden
                   onChange={(e) => e.target.files?.[0] && upload(i, e.target.files[0])} />
               </div>
-              {s.credit && <p className="small muted">الصورة: <a href={s.credit.url} target="_blank" rel="noreferrer">{s.credit.name}</a> على {s.credit.source}</p>}
+              {s.credit && <p className="small muted">{s.clip_url ? "اللقطة" : "الصورة"}: <a href={s.credit.url} target="_blank" rel="noreferrer">{s.credit.name}</a> على {s.credit.source}</p>}
             </div>
           </div>
         ))}
@@ -166,7 +204,9 @@ export default function ReelEditor({ post, dna, onChange }: { post: Post; dna: D
           <input type="text" value={outro} onChange={(e) => setOutro(e.target.value)} onBlur={saveScenes} />
         </label>
       )}
-      <p className="small muted">المشاهد اللي من غير صورة هنجيبلها صورة حقيقية لوحدنا. صور منتجك الحقيقي دايماً أحسن.</p>
+      <p className="small muted">{reel.style === "montage"
+        ? "المشاهد اللي من غير لقطة هنجيبلها لقطة فيديو حقيقية لوحدنا، والقص بيمشي على إيقاع الموسيقى. لقطات منتجك الحقيقي دايماً أحسن."
+        : "المشاهد اللي من غير صورة هنجيبلها صورة حقيقية لوحدنا. صور منتجك الحقيقي دايماً أحسن."}</p>
 
       <div className="row">
         <div className="spacer" />

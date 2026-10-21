@@ -167,7 +167,8 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px }
 .scenes { display: flex; flex-direction: column; gap: 10px }
 .scene { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding-top: 10px }
 .scene input, .scene textarea { margin-bottom: 4px }
-canvas.reelthumb { width: 96px; flex: none; border-radius: 8px; aspect-ratio: 9 / 16 }
+.reelthumb { position: relative; width: 96px; flex: none; border-radius: 8px; aspect-ratio: 9 / 16; overflow: hidden; background: #000 }
+.reelthumb canvas, .reelthumb video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 0; background: transparent }
 .reelvideo { display: flex; flex-direction: column; gap: 8px; align-items: center }
 .reelvideo video, video.lockedvideo { width: 100%; max-width: 320px; border-radius: 12px; background: #000; aspect-ratio: 9 / 16 }
 
@@ -262,3 +263,38 @@ canvas.reelthumb { width: 96px; flex: none; border-radius: 8px; aspect-ratio: 9 
   .lp-links, .lp-login { display: none }
   .lp-f1 { inset-inline-start: 0 } .lp-f2 { inset-inline-end: 0 }
 }
+
+/* ---------- Teleprompter ---------- */
+.prompter { position: fixed; inset: 0; z-index: 50; background: #05060C; color: #fff; display: flex; flex-direction: column }
+.prompter-cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1) }
+.prompter-text { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding-inline: max(20px, 8vw); text-align: center; font-family: var(--f-head); font-weight: 600; line-height: 1.6; cursor: pointer }
+.prompter-text::-webkit-scrollbar { display: none }
+.prompter-text.over-cam { flex: none; height: 42vh; background: linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,.45)); text-shadow: 0 2px 8px rgba(0,0,0,.8) }
+.prompter-text p { margin: 0 0 .7em } .prompter-text .hook { color: #F2B640 } .prompter-text .cta { color: #7FE0B5 }
+.prompter-pad.pad-top { height: 35vh } .prompter-pad.pad-end { height: 70vh } .over-cam .prompter-pad.pad-top { height: 16vh } .over-cam .prompter-pad.pad-end { height: 40vh }
+.prompter-guide { position: absolute; top: 35vh; inset-inline: 0; height: 2px; background: rgba(242,182,64,.45); pointer-events: none }
+.over-cam ~ .prompter-guide { top: 16vh }
+.prompter-count { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-head); font-size: 160px; font-weight: 800; color: #F2B640; background: rgba(0,0,0,.35); pointer-events: none }
+.prompter-rec { position: absolute; top: 14px; inset-inline-start: 16px; color: #FF5A4E; font-weight: 700; letter-spacing: 1px; z-index: 2 }
+.prompter-bar { position: absolute; bottom: 0; inset-inline: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 12px max(12px, env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom)); background: rgba(10,11,20,.9) }
+.prompter-bar .btn { background: #1F2034; color: #fff; border-color: #3C3D5A }
+.prompter-bar .btn.primary { background: #F2B640; color: #1A1300; border-color: #F2B640 }
+.prompter-bar .btn[aria-pressed="true"] { outline: 2px solid #F2B640 }
+.prompter-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #CFCDE0 }
+.prompter-ctl input { width: 90px; accent-color: #F2B640 }
+.prompter-take { position: absolute; inset: 0; z-index: 3; background: rgba(5,6,12,.94); display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; padding: 16px }
+.prompter-take video { max-height: 68vh; max-width: 100%; border-radius: 12px; background: #000 }
+.prompter-take .btn { background: #1F2034; color: #fff; border-color: #3C3D5A } .prompter-take .btn.primary { background: #F2B640; color: #1A1300 }
+.prompter-status { position: absolute; bottom: 76px; inset-inline: 12px; z-index: 4; text-align: center; padding: 6px 12px; background: rgba(10,11,20,.85); border-radius: 10px; color: #CFCDE0; font-size: 14px }
+
+/* ---------- Reels studio ---------- */
+.studio-start { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px }
+.studio-start .panel h3 { display: flex; align-items: center; gap: 10px }
+.studio-start .vi { width: 38px; height: 38px; border-radius: 10px; background: var(--brand-soft); color: var(--brand-text); display: grid; place-items: center; flex: none }
+.studio-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 10px }
+.studio-item { text-align: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px }
+.studio-item[aria-pressed="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) }
+.talk-line { display: flex; gap: 8px; align-items: center }
+.talk-line span { width: 26px; flex: none; text-align: center; color: var(--muted); font-size: 12px }
+.takes { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px }
+.takes video { width: 100%; border-radius: 10px; background: #000; aspect-ratio: 9 / 16; object-fit: cover }

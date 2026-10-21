@@ -1,5 +1,8 @@
-"""Builds the MP4 with ffmpeg: slow camera pan on each photo, the Arabic text layer (drawn by the frontend with real
-fonts) sliding in, cross-fades between scenes, a branded outro, voice-over per scene and music underneath."""
+"""Builds the MP4 with ffmpeg: real video clips (or a slow camera pan on photos), the Arabic text layer (drawn by the
+frontend with real fonts) sliding in, transitions in the chosen rhythm, cuts on the music beat, one colour grade
+across all shots, a branded outro, voice-over per scene and music underneath."""
+
+import math
 
 import os
 import subprocess
@@ -9,7 +12,13 @@ from ..ai.llm import AIError
 from ..config import get_settings
 
 W, H, FPS = 1080, 1920, 30
-XFADE = 0.4
+GRADE = "eq=contrast=1.06:saturation=1.1:brightness=0.01"  # same look on every clip, so mixed sources feel like one shoot
+RHYTHMS = {
+    # transition length, transitions cycled between scenes, shortest scene
+    "calm": {"xfade": 0.4, "transitions": ["fade"], "floor": 3.2},
+    "fast": {"xfade": 0.25, "transitions": ["slideleft", "slideup", "wipeleft", "circleopen"], "floor": 2.2},
+    "cinematic": {"xfade": 0.6, "transitions": ["fadeblack", "fade"], "floor": 3.6},
+}
 PAD_W, PAD_H = 1188, 2112  # photo is scaled 10% larger than the frame so the camera can pan
 
 
@@ -19,6 +28,7 @@ class Scene:
     photo: str | None       # background photo; None for the outro card
     voice: str | None       # MP3 of this scene's voice-over
     voice_s: float = 0.0
+    clip: str | None = None  # stock or uploaded video; used instead of the photo when set
 
 
 def _run(args: list[str], timeout: int = 600) -> None:
@@ -52,25 +62,50 @@ def _prep_photo(src: str, dst: str) -> None:
     _run(["-i", src, "-filter_complex", vf, "-frames:v", "1", "-q:v", "3", dst])
 
 
-def durations(scenes: list[Scene]) -> list[float]:
+def durations(scenes: list[Scene], rhythm: str = "calm", beat: float | None = None) -> list[float]:
+    """Each scene lasts long enough for its voice line; with music, it is rounded up to whole beats so cuts land on the beat."""
+    r = RHYTHMS.get(rhythm, RHYTHMS["calm"])
     out = []
-    for i, s in enumerate(scenes):
-        floor = 2.6 if s.photo is None else 3.2
-        out.append(round(max(floor, s.voice_s + 0.9 + XFADE if s.voice else floor), 2))
+    for s in scenes:
+        outro = s.photo is None and s.clip is None
+        floor = 2.6 if outro else r["floor"]
+        d = max(floor, s.voice_s + 0.9 + r["xfade"] if s.voice else floor)
+        if beat and not outro:
+            d = math.ceil(d / beat) * beat
+        out.append(round(d, 2))
     return out
 
 
-def render(scenes: list[Scene], music: str | None, workdir: str, out_path: str) -> float:
+def _prep_clip(src: str, dst: str, seconds: float) -> None:
+    """Trim (looping if the clip is short), fill the 9:16 frame, 30 fps, graded, no sound."""
+    try:
+        _run(["-stream_loop", "-1", "-t", f"{seconds:.2f}", "-i", src, "-an",
+              "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1,{GRADE},format=yuv420p",
+              "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", dst])
+    except AIError as exc:
+        raise AIError("render_failed", "لقطة فيديو مش بتفتح، غيّرها") from exc
+
+
+def render(scenes: list[Scene], music: str | None, workdir: str, out_path: str,
+           rhythm: str = "calm", beat: float | None = None) -> float:
     """Returns the video length in seconds."""
     if not scenes:
         raise AIError("render_failed", "مفيش مشاهد")
-    durs = durations(scenes)
+    r = RHYTHMS.get(rhythm, RHYTHMS["calm"])
+    xfade = r["xfade"]
+    durs = durations(scenes, rhythm, beat)
     args: list[str] = []
     graph: list[str] = []
     idx = 0
     labels = []
     for i, (s, d) in enumerate(zip(scenes, durs)):
-        if s.photo:
+        if s.clip:
+            prepped = os.path.join(workdir, f"clip{i}.mp4")
+            _prep_clip(s.clip, prepped, d)
+            args += ["-i", prepped]
+            graph.append(f"[{idx}:v]setpts=PTS-STARTPTS[b{i}]")
+            idx += 1
+        elif s.photo:
             prepped = os.path.join(workdir, f"bg{i}.jpg")
             try:
                 _prep_photo(s.photo, prepped)
@@ -82,11 +117,11 @@ def render(scenes: list[Scene], music: str | None, workdir: str, out_path: str) 
             # alternate the camera move: drift left, drift up, drift right...
             dx, dy = [("(iw-ow)*t/{d}", "(ih-oh)/2"), ("(iw-ow)/2", "(ih-oh)*(1-t/{d})"),
                       ("(iw-ow)*(1-t/{d})", "(ih-oh)/2"), ("(iw-ow)/2", "(ih-oh)*t/{d}")][i % 4]
-            graph.append(f"[{bg}:v]crop={W}:{H}:x='{dx.format(d=d)}':y='{dy.format(d=d)}'[b{i}]")
+            graph.append(f"[{bg}:v]crop={W}:{H}:x='{dx.format(d=d)}':y='{dy.format(d=d)}',{GRADE}[b{i}]")
         args += ["-loop", "1", "-framerate", str(FPS), "-t", f"{d}", "-i", s.overlay]
         ov = idx
         idx += 1
-        if s.photo:
+        if s.photo or s.clip:
             graph.append(f"[{ov}:v]format=rgba,fade=t=in:st=0.25:d=0.5:alpha=1[o{i}]")
             graph.append(f"[b{i}][o{i}]overlay=x=0:y='if(lt(t,0.75),60*(1-t/0.75),0)',fps={FPS},format=yuv420p,setsar=1[v{i}]")
         else:
@@ -97,12 +132,13 @@ def render(scenes: list[Scene], music: str | None, workdir: str, out_path: str) 
     starts, t = [], 0.0
     for d in durs:
         starts.append(t)
-        t += d - XFADE
-    total = round(sum(durs) - XFADE * (len(durs) - 1), 2)
+        t += d - xfade
+    total = round(sum(durs) - xfade * (len(durs) - 1), 2)
     last = labels[0]
     for i in range(1, len(labels)):
         out = f"x{i}" if i < len(labels) - 1 else "vout"
-        graph.append(f"[{last}][{labels[i]}]xfade=transition=fade:duration={XFADE}:offset={starts[i]:.2f}[{out}]")
+        kind = r["transitions"][(i - 1) % len(r["transitions"])] if i < len(labels) - 1 else "fade"  # the outro always fades in
+        graph.append(f"[{last}][{labels[i]}]xfade=transition={kind}:duration={xfade}:offset={starts[i]:.2f}[{out}]")
         last = out
     if len(labels) == 1:
         graph.append(f"[{last}]null[vout]")

@@ -158,18 +158,42 @@ Rules: 2 or 3 personas; 2 to 4 channels ranked by priority; exactly 4 content pi
 (الشهر الأول, الشهر التاني, الشهر التالت); budget.monthly_total must respect the client's stated ad budget."""
 
 
-def reel_script(brief: dict, dna: dict, post: dict, dialect: str, context: str = "") -> str:
+def reel_script(brief: dict, dna: dict, post: dict, dialect: str, context: str = "", scenes: int = 4, montage: bool = False) -> str:
     s = _brand_summary(dna)
-    return f"""You are a senior short-form video creator writing a 15-25 second Instagram/TikTok reel for the Arabic brand "{s["name"].get("ar", "")}".
+    footage = ("Each scene is shown with a real stock VIDEO clip, so photo_query must describe a short moving shot that stock libraries have "
+               "(people, hands, products, places in motion), in 2-4 plain English words." if montage else
+               "Each scene is shown with one photo.")
+    return f"""You are a senior short-form video creator writing an Instagram/TikTok reel for the Arabic brand "{s["name"].get("ar", "")}".
 Business: {brief.get("idea", "")}. Tone: {s["tone"]}. Don't: {"; ".join(s["dont"] or [])}.
-{_ctx(context)}The reel is based on this planned post: {json.dumps(post, ensure_ascii=False)}
+{_ctx(context)}The reel is about: {json.dumps(post, ensure_ascii=False)}
 The voice-over is read by a text-to-speech voice in this dialect: {DIALECTS.get(dialect, DIALECTS["msa"])}. Write the spoken lines exactly as people
 talk in that dialect, short and natural, with no emojis, hashtags, symbols or English words (write numbers as words if they are short).
+{footage}
 
 Structure: scene 1 is the hook (a question or a bold specific claim, understood in 2 seconds); the middle scenes show one benefit or proof each;
 the last scene is the offer or the reason to act now. On-screen text is short and big; the voice says more than the screen.
 Reply with ONLY one JSON object:
-{{"scenes":[{{"text":"Arabic on-screen text, max 6 words","sub":"optional Arabic line, max 8 words, or empty","voice":"spoken line in the dialect, 6-16 words",
-"photo_query":"2-4 English keywords for a real stock photo of this scene","visual_prompt":"English photo description for an AI image, photorealistic, no text"}}],
-"outro_voice":"short spoken call to action in the dialect, max 8 words"}}
-Rules: 3 to 5 scenes. Never invent prices, discounts, numbers or guarantees that are not in the post or the business facts above."""
+{{"title":"short Arabic title for this reel","scenes":[{{"text":"Arabic on-screen text, max 6 words","sub":"optional Arabic line, max 8 words, or empty","voice":"spoken line in the dialect, 6-16 words",
+"photo_query":"2-4 English keywords for stock footage of this scene","visual_prompt":"English photo description for an AI image, photorealistic, no text"}}],
+"outro_voice":"short spoken call to action in the dialect, max 8 words","caption":"2-3 short lines in the dialect for the post caption",
+"hashtags":["3-5 hashtags"],"cta":"short Arabic call to action"}}
+Rules: exactly {scenes} scenes. Never invent prices, discounts, numbers or guarantees that are not in the post or the business facts above."""
+
+
+def talk_script(brief: dict, dna: dict, topic: str, own_script: str, seconds: int, words: int, dialect: str, context: str = "") -> str:
+    s = _brand_summary(dna)
+    task = (f"The owner wrote this script. Keep their ideas, facts and voice; fix the flow, make the hook stronger, cut it to about {words} words, "
+            f"and split it into short lines they can read naturally:\n{own_script}" if own_script.strip() else
+            f"Write the script about: {topic or 'what makes this business worth choosing'}. About {words} words in total.")
+    return f"""You write talking-head reel scripts for the owner of the Arabic brand "{s["name"].get("ar", "")}" to read to the phone camera from a teleprompter.
+Business: {brief.get("idea", "")}. Tone: {s["tone"]}. Don't: {"; ".join(s["dont"] or [])}.
+{_ctx(context)}Target length: {seconds} seconds spoken. Dialect: {DIALECTS.get(dialect, DIALECTS["msa"])}, written exactly as people speak it.
+{task}
+
+Rules: the first line is a hook that stops the scroll in 2 seconds (a question, a surprising fact the owner gave, or a common mistake);
+one idea per line, each line 4-12 words, easy to say in one breath; no emojis or symbols; never invent prices, numbers or guarantees
+that are not in the facts above; end with one clear call to action.
+Reply with ONLY one JSON object:
+{{"title":"short Arabic title","hook":"first line","lines":["the middle lines"],"cta":"last line, the call to action",
+"broll":["2-4 English keywords for B-roll shots to cut to while the owner talks"],"caption":"2-3 short lines for the post caption",
+"hashtags":["3-5 hashtags"]}}"""

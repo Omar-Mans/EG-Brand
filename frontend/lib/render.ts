@@ -362,7 +362,22 @@ function captionBoxes(ctx: CanvasRenderingContext2D, text: string, cy: number, s
   return y;
 }
 
-export async function drawReelScene(cv: HTMLCanvasElement, dna: Dna, scene: ReelSceneLike, index: number, total: number, withPhoto = false) {
+/** Subtitle of the spoken line, low in the frame but above the platform's caption area. */
+function subtitle(ctx: CanvasRenderingContext2D, text: string) {
+  setFont(ctx, 700, 50, "IBM Plex Sans Arabic");
+  const lines = wrap(ctx, text, RW - 220).slice(0, 3);
+  const lh = 70, top = 1330 - (lines.length - 1) * lh;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  lines.forEach((l, i) => {
+    const w = ctx.measureText(l).width + 44;
+    rrect(ctx, RW / 2 - w / 2, top + i * lh - lh / 2 + 6, w, lh - 10, 14);
+    ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fill();
+    ctx.fillStyle = "#FFFFFF"; ctx.fillText(l, RW / 2, top + i * lh + 2);
+  });
+}
+
+export async function drawReelScene(cv: HTMLCanvasElement, dna: Dna, scene: ReelSceneLike, index: number, total: number, withPhoto = false,
+  caption = "") {
   cv.width = RW; cv.height = RH;
   const ctx = cv.getContext("2d")!;
   const p = palette(dna);
@@ -386,7 +401,8 @@ export async function drawReelScene(cv: HTMLCanvasElement, dna: Dna, scene: Reel
   brandMark(ctx, dna, RW / 2, 190, "#FFFFFF", "center", 40);
   const hook = index === 0;
   const boxBg = hook ? p.accent : p.primary;
-  const bottom = captionBoxes(ctx, scene.text, hook ? RH * 0.46 : RH * 0.6, hook ? 104 : 88, dna.font_ar, boxBg, onColor(boxBg, p.dark, "#FFFFFF"));
+  const y = caption ? (hook ? RH * 0.4 : RH * 0.48) : (hook ? RH * 0.46 : RH * 0.6);
+  const bottom = captionBoxes(ctx, scene.text, y, hook ? 104 : 88, dna.font_ar, boxBg, onColor(boxBg, p.dark, "#FFFFFF"));
   if (scene.sub) {
     setFont(ctx, 600, 46, "IBM Plex Sans Arabic");
     ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "center";
@@ -401,6 +417,7 @@ export async function drawReelScene(cv: HTMLCanvasElement, dna: Dna, scene: Reel
     ctx.arc(RW / 2 + w / 2 - dot / 2 - i * (dot + gap), 268, dot / 2, 0, Math.PI * 2);
     ctx.fillStyle = i === index ? "#FFFFFF" : "rgba(255,255,255,.4)"; ctx.fill();
   }
+  if (caption) subtitle(ctx, caption);
 }
 
 export async function drawReelOutro(cv: HTMLCanvasElement, dna: Dna, cta: string) {

@@ -40,6 +40,7 @@ export default function BrandFrame({ children }: { children: React.ReactNode }) 
     ["/strategy", "الاستراتيجية"],
     ["", "الهوية"],
     ["/content", "المحتوى"],
+    ["/studio", "الريلز"],
     ["/publish", "النشر"],
     ["/ads", "الإعلانات"],
   ];

@@ -136,3 +136,66 @@ def test_broken_scene_photo_gives_a_clear_error(client):
     job = client.post(f"/api/posts/{pid}/reel/render", headers=h, files=files).json()
     jobs.process_jobs()
     assert "صورة المشهد 2" in client.get(f"/api/jobs/{job['id']}", headers=h).json()["error"]
+
+
+@needs_ffmpeg
+def test_studio_montage_with_video_clips(client):
+    h = register(client)
+    brand = ready_brand(client, h)
+    bad = client.post(f"/api/brands/{brand['id']}/reels", headers=h, json={"kind": "montage", "topic": "x", "seconds": 45})
+    assert bad.status_code == 422
+    r = client.post(f"/api/brands/{brand['id']}/reels", headers=h, json={"kind": "montage", "topic": "ليه تشتري من عندنا", "seconds": 15, "voice": "eg_m"}).json()
+    run_job(client, h, r["job"])
+    post = client.get(f"/api/brands/{brand['id']}/reels", headers=h).json()[0]
+    reel = post["design"]["reel"]
+    assert post["format"] == "reel" and reel["style"] == "montage" and reel["voice"] == "eg_m" and reel["seconds"] == 15
+    assert post["headline"] == "عربية مضمونة بجد" and post["caption"] and post["hashtags"]  # filled from the AI script
+
+    pid = post["id"]
+    run_job(client, h, client.post(f"/api/posts/{pid}/reel/scenes/0/photo", headers=h, json={"source": "video", "prompt": "car showroom"}).json())
+    assert client.patch(f"/api/posts/{pid}/reel", headers=h, json={"rhythm": "turbo"}).status_code == 422
+    client.patch(f"/api/posts/{pid}/reel", headers=h, json={"rhythm": "fast", "music": "bright"})
+    files = [("overlays", (f"s{i}.png", overlay_png(), "image/png")) for i in range(len(reel["scenes"]) + 1)]
+    res = run_job(client, h, client.post(f"/api/posts/{pid}/reel/render", headers=h, files=files).json())["result"]
+    done = client.get(f"/api/brands/{brand['id']}/reels", headers=h).json()[0]["design"]["reel"]
+    assert all(s["clip_url"] for s in done["scenes"])  # montage fills every scene with a video clip
+    assert res["video_url"].endswith(".mp4") and res["duration"] > 6
+
+
+def test_studio_talk_script_and_raw_take(client):
+    h = register(client)
+    brand = ready_brand(client, h)
+    assert client.post(f"/api/brands/{brand['id']}/reels", headers=h, json={"kind": "talk", "seconds": 30}).status_code == 422
+    r = client.post(f"/api/brands/{brand['id']}/reels", headers=h,
+                    json={"kind": "talk", "script": "عايز أتكلم عن الفحص والضمان عندنا", "seconds": 30}).json()
+    talk = run_job(client, h, r["job"])["result"]["talk"]
+    assert talk["own"] and talk["hook"] and talk["lines"] and talk["cta"] and talk["read_seconds"] > 0
+    pid = r["post"]["id"]
+    assert r["post"]["design"]["reel"]["voice"] == "none"  # the owner's own voice
+
+    p = client.patch(f"/api/posts/{pid}/reel/talk", headers=h, json={"hook": "اسمع دي قبل ما تشتري", "lines": ["سطر واحد", ""], "cta": "كلمنا"}).json()
+    assert p["design"]["reel"]["talk"]["lines"] == ["سطر واحد"] and p["design"]["reel"]["talk"]["words"] == 8
+
+    take = client.post(f"/api/posts/{pid}/reel/raw", headers=h, files={"file": ("take.webm", b"\x1aE\xdf\xa3" + b"0" * 100, "video/webm")}).json()
+    assert take["design"]["reel"]["raw"][0]["url"].endswith(".webm")
+    assert client.post(f"/api/posts/{pid}/reel/raw", headers=h, files={"file": ("x.txt", b"hi", "text/plain")}).status_code == 415
+
+
+def test_pixabay_video_pick(monkeypatch):
+    from app.reels import stock_video
+
+    class Fake:
+        def __init__(self, *a, **k): ...
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url, **kw):
+            assert "videos" in url and kw["params"]["video_type"] == "film"
+            return httpx.Response(200, json={"hits": [
+                {"duration": 2, "user": "short", "pageURL": "p0", "videos": {"medium": {"url": "https://cdn/0.mp4", "width": 1280, "height": 720}}},
+                {"duration": 9, "user": "Lina", "pageURL": "p1", "videos": {"medium": {"url": "https://cdn/1.mp4", "width": 720, "height": 1280}}}]})
+
+    import httpx
+    monkeypatch.setattr(stock_video.get_settings(), "pixabay_api_key", "k")
+    url, credit = stock_video._pick_pixabay(Fake(), "car", 4)
+    assert url == "https://cdn/1.mp4" and credit["name"] == "Lina"  # long enough, and vertical first
