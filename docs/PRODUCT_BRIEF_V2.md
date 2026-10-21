@@ -65,7 +65,7 @@ business types this quarter. Work like a senior team (research, design, backend,
 - Fix any UX debt: consistent spacing, loading skeletons instead of text, clear errors, keyboard and screen-reader access.
 
 ## Workstream 2: Reels Studio v2 (AI editing of real footage)
-Three modes on one screen.
+Four modes on one screen: the user films, or the AI builds the whole reel from footage, or both.
 
 ### A. Script first (before filming)
 - The user writes a script or asks the AI for one: hook, body and CTA, in their dialect, timed to 15, 30 or 60 seconds,
@@ -87,8 +87,30 @@ The user uploads the phone video as shot. The pipeline then:
 7. **Reframe** horizontal footage to 9:16 by keeping the face centered.
 8. **AI cover image** made from the user's own frames.
 
-### C. No footage
-Keep Reels v1: photo scenes with TTS voice-over and music.
+### C. AI-made reel (no filming needed): a professional montage of real video clips
+The user gives a topic, or picks a planned post. The AI writes the script and the shot list, then assembles
+**moving footage**, not still photos:
+- **Footage per scene, picked automatically and swappable by the user:**
+  1. Free stock **video** clips. Pixabay Videos API uses the same free key. Pexels Videos too if a key exists.
+     Search with the scene's English keywords, prefer vertical clips, and trim to the scene length.
+  2. AI images with motion (Ken Burns pan and zoom, plus parallax) when no good clip exists. Free.
+  3. **AI-generated video clips** as an optional paid upgrade (e.g. image-to-video models on fal.ai, priced per second).
+     Show the cost per reel before generating. Never enabled by default.
+  4. The brand's own photos and clips, from an uploaded media library.
+- **Professional editing:**
+  - cuts on the beat of the music
+  - speed ramps
+  - transitions matched to the template
+  - Arabic captions synced to the voice-over, word by word
+  - the brand intro and outro
+  - consistent colour grading across clips
+- **Voice and music:** Saudi or Egyptian TTS voice-over, or none, plus in-house generated music or the user's own track
+  (Reels v1 already does this).
+- Keep Reels v1 (photo scenes) as the fastest, lightest option.
+
+### D. Mixed
+Any reel can mix the user's own clips (Mode B) with stock or AI scenes (Mode C). For example: the owner talks to camera,
+and the AI inserts product B-roll while he mentions it.
 
 ### Output and limits
 - **Output:** 1080x1920 H.264 + AAC MP4, published or scheduled to Instagram Reels and TikTok.
@@ -138,7 +160,7 @@ Goal: replace most of an agency media buyer's routine for small budgets, safely.
 ## Order of work and reporting
 1. Workstream 0, then a short positioning and pricing decision note for the founders to approve.
 2. Workstream 1 design tokens and components, applied while building the next items.
-3. Reels Studio v2: script mode and teleprompter, then raw-upload editing, then templates.
+3. Reels Studio v2: script mode and teleprompter, then the AI-made stock-video montage (Mode C), then raw-upload editing, then templates and mixing.
 4. AI Media Buyer: tracking links and insights sync, then recommendations and approvals, then guarded auto mode.
 5. Workstream 4.
 
