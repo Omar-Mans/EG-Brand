@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { THEME_SCRIPT } from "@/components/ThemeToggle";
 
-export const metadata: Metadata = { title: "EG Brand Studio", description: "Arabic-first brand and content platform" };
+export const metadata: Metadata = {
+  title: "EG Brand: فريق تسويق بالذكاء الاصطناعي",
+  description: "منصة عربية بتدرس مشروعك، وتكتب استراتيجيته، وتعمل الهوية والبوستات والريلز بصوت سعودي ومصري، وتنشر وتدير إعلاناتك.",
+  icons: { icon: "/icon.svg" },
+};
 
 const FONTS =
   "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@400;500;600;700" +
@@ -12,8 +17,9 @@ const FONTS =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ar" dir="rtl">
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link rel="stylesheet" href={FONTS} />
       </head>

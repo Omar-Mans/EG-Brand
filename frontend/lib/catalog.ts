@@ -54,3 +54,7 @@ export const PHOTO_LAYOUTS = ["photo_overlay", "photo_split"];
 export const TIMEZONES: Record<string, string> = { "Asia/Riyadh": "توقيت السعودية", "Africa/Cairo": "توقيت مصر", "Asia/Dubai": "توقيت الإمارات" };
 export const DEFAULT_TZ: Record<string, string> = { SA: "Asia/Riyadh", EG: "Africa/Cairo" };
 export const STATUS_LABEL: Record<string, string> = { draft: "مش مجدول", scheduled: "مجدول", publishing: "بيتنشر", published: "اتنشر", failed: "فشل" };
+
+export const VERTICAL_SECTOR: Record<string, string> = {
+  cars: "عربيات", restaurants: "مطاعم وكافيهات", clinics: "عيادات وتجميل", real_estate: "عقارات", ecommerce: "تجارة إلكترونية",
+};

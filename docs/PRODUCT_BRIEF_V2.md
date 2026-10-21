@@ -27,8 +27,8 @@ business types this quarter. Work like a senior team (research, design, backend,
 
 ## Workstream 0: Market research and positioning (do this first, keep it short)
 - Verify and compare these competitors from their own sites. Cite sources and mark anything unverified.
-  - **Arabic content and reels:** Mohtwa (AI reel editing for Egyptian creators: raw upload, then silence and retake cutting,
-    Egyptian captions, 8 templates, publishing; 399, 999 and 2,199 EGP per month), Nashrflow, Sahal AI, Adly AI, Scale by AI (Egypt).
+  - **Arabic content and reels:** Mohtawa (mohtawa.studio, AI reel editing for Egyptian creators: raw upload, then silence and retake cutting,
+    Egyptian captions, 8 templates, publishing; 399, 999 and 2,199 EGP per month), mohtwa.ai (a different company), Nashrflow, Sahal AI, Adly AI, Scale by AI (Egypt).
   - **Global content tools:** Predis.ai, Ocoya, FeedHive, Canva.
   - **Video editing:** Submagic, Captions, OpusClip, CapCut.
   - **Media buying:** Madgicx, Birch (formerly Revealbot), AdCreative.ai, Smartly.
@@ -41,7 +41,7 @@ business types this quarter. Work like a senior team (research, design, backend,
   - a recommended pricing table in EGP and SAR with a margin check against our measured AI cost per company
 - Working positioning, to refine with the data: *"Your AI marketing team in Arabic: it studies your business, plans,
   creates posts and reels, publishes, and runs your ads, with you approving every step."*
-  Mohtwa does reel editing only. We cover the whole loop.
+  Mohtawa does reel editing only. We cover the whole loop.
 
 ## Workstream 1: Brand, design system and product polish
 - Propose a refined visual identity for EG Brand: logo mark, color tokens for light and dark themes, an Arabic and Latin type
@@ -74,8 +74,8 @@ Four modes on one screen: the user films, or the AI builds the whole reel from f
 
 ### B. Raw upload (main mode)
 The user uploads the phone video as shot. The pipeline then:
-1. **Transcribe** with word timestamps. Use Groq `whisper-large-v3` on the free tier, and first check that word-level
-   timestamps are returned. Fall back to local `faster-whisper`.
+1. **Transcribe** with word timestamps. Use Groq `whisper-large-v3` (it returns word-level timestamps with
+   `response_format=verbose_json` and `timestamp_granularities=["word"]`). Fall back to local `faster-whisper`.
 2. **Cut** silences (`ffmpeg silencedetect`), fillers such as "اممم" and "يعني", and false starts. When a sentence is repeated,
    keep the **last complete take**: an LLM compares the repeated segments in the transcript.
 3. **Clean the audio:** denoise, then loudness-normalize to about -14 LUFS.

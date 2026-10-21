@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..ai import discovery as disc
+from ..ai import verticals
 from ..ai import timing
 from ..ai.catalog import AD_OBJECTIVES, AD_PLATFORMS, DEFAULT_TZ, DIALECTS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, STYLES, TIMEZONES
 from ..ai.occasions import occasions_for
@@ -25,6 +26,7 @@ class BriefIn(BaseModel):
     styles: list[str] = []
     colors: list[str] = []
     timezone: str = ""
+    vertical: str = ""
 
 
 class DnaPatch(BaseModel):
@@ -75,7 +77,8 @@ def _clean_brief(body: BriefIn) -> dict:
         raise HTTPException(422, "اللهجة مش مدعومة")
     return {"idea": body.idea.strip(), "name": body.name.strip(), "market": body.market, "dialect": body.dialect,
             "styles": [s for s in body.styles if s in STYLES][:4], "colors": [c for c in body.colors if HEX.match(c)][:3],
-            "timezone": body.timezone if body.timezone in TIMEZONES else DEFAULT_TZ[body.market]}
+            "timezone": body.timezone if body.timezone in TIMEZONES else DEFAULT_TZ[body.market],
+            "vertical": body.vertical if body.vertical in verticals.PACKS else verticals.OTHER}
 
 
 @router.get("/catalog")
@@ -207,15 +210,20 @@ def best_times(brand_id: str, user: User = Depends(current_user), db: Session = 
     return timing.best_times(get_brand(brand_id, user, db).brief or {})
 
 
+@router.get("/verticals")
+def list_verticals():
+    return verticals.public()
+
+
 @router.get("/discovery/questions")
-def discovery_questions():
-    return {"sections": disc.SECTIONS, "required": disc.REQUIRED}
+def discovery_questions(vertical: str | None = None):
+    return {"sections": disc.sections(vertical), "required": disc.REQUIRED}
 
 
 @router.put("/brands/{brand_id}/discovery")
 def save_discovery(brand_id: str, body: DiscoveryIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     brand = get_brand(brand_id, user, db)
-    brand.discovery = {**(brand.discovery or {}), "answers": disc.clean_answers(body.answers)}
+    brand.discovery = {**(brand.discovery or {}), "answers": disc.clean_answers(body.answers, (brand.brief or {}).get("vertical"))}
     db.commit()
     return brand_out(brand)
 

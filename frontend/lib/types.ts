@@ -1,4 +1,5 @@
 export type Brief = {
+  vertical?: string;
   idea: string;
   name: string;
   market: "EG" | "SA";
@@ -145,3 +146,5 @@ export type Campaign = {
   external_ids: Record<string, string>;
   error: string;
 };
+
+export type Vertical = { id: string; label: string; icon: string; pitch: string };

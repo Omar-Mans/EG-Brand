@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Brand, Post, SocialAccount
 from . import discovery as disc
+from . import verticals
 from . import mock, prompts, timing
 from .catalog import AD_PLATFORMS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, PALETTE_ROLES, POST_FORMATS
 from .llm import AIError, complete_json
@@ -56,7 +57,8 @@ def normalize_dna(d: dict, preferred_name: str = "") -> dict:
 
 def brand_context(brand: Brand, limit: int = 5000) -> str:
     """What every prompt should know: the owner's discovery answers plus the essentials of the agreed strategy."""
-    parts = [disc.as_text(brand.discovery, 3500)]
+    brief = brand.brief or {}
+    parts = [disc.as_text(brand.discovery, 3500), verticals.as_text(brief.get("vertical"), brief.get("market", "EG"))]
     st = brand.strategy or {}
     if st:
         pos = st.get("positioning") or {}
@@ -191,7 +193,8 @@ def generate_strategy(db: Session, brand: Brand) -> dict:
     brief = brand.brief or {}
     currency = MARKETS.get(brief.get("market"), MARKETS["EG"])["currency"]
     today = timing.now_local(timing.brand_tz(brief)).date().isoformat()
-    data = complete_json(db, prompts.strategy(brief, disc.as_text(brand.discovery), currency, today),
+    playbook = verticals.as_text(brief.get("vertical"), brief.get("market", "EG"))
+    data = complete_json(db, prompts.strategy(brief, "\n".join(x for x in (disc.as_text(brand.discovery), playbook) if x), currency, today),
                          company_id=brand.company_id, brand_id=brand.id, feature="strategy", tier="quality",
                          mock=lambda: mock.strategy(), max_tokens=6000)
     st = normalize_strategy(data)

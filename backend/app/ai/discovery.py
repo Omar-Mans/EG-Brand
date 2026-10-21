@@ -59,9 +59,24 @@ QUESTIONS = {q["id"]: q for s in SECTIONS for q in s["questions"]}
 REQUIRED = [q["id"] for q in QUESTIONS.values() if q.get("required")]
 
 
-def clean_answers(raw: dict) -> dict:
+def _all(vertical: str | None = None) -> dict:
+    from .verticals import questions
+
+    return {**QUESTIONS, **{q["id"]: q for q in questions(vertical)}}
+
+
+def sections(vertical: str | None = None) -> list[dict]:
+    from .verticals import PACKS, questions
+
+    extra = questions(vertical)
+    if not extra:
+        return SECTIONS
+    return [SECTIONS[0], {"id": "vertical", "title": f"أسئلة خاصة بـ{PACKS[vertical]['label']}", "questions": extra}, *SECTIONS[1:]]
+
+
+def clean_answers(raw: dict, vertical: str | None = None) -> dict:
     out: dict = {}
-    for qid, q in QUESTIONS.items():
+    for qid, q in _all(vertical).items():
         v = raw.get(qid)
         if v in (None, "", []):
             continue
@@ -85,7 +100,9 @@ def as_text(discovery: dict | None, limit: int = 6000) -> str:
         return ""
     lines = []
     answers = discovery.get("answers") or {}
-    for qid, q in QUESTIONS.items():
+    from .verticals import ALL_QUESTIONS
+
+    for qid, q in {**QUESTIONS, **ALL_QUESTIONS}.items():
         if answers.get(qid):
             v = answers[qid]
             lines.append(f"- {q['label']}: {'، '.join(v) if isinstance(v, list) else v}")

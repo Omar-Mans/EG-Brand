@@ -1,20 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { DEFAULT_TZ, DIALECTS, MARKETS, PREF_COLORS, STYLES, TIMEZONES } from "@/lib/catalog";
-import type { Brief } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { DEFAULT_TZ, DIALECTS, ICONS, MARKETS, PREF_COLORS, STYLES, TIMEZONES } from "@/lib/catalog";
+import type { Brief, Vertical } from "@/lib/types";
 
-export const EMPTY_BRIEF: Brief = { idea: "", name: "", market: "EG", dialect: "egyptian", styles: [], colors: [], timezone: "Africa/Cairo" };
+export const EMPTY_BRIEF: Brief = { vertical: "", idea: "", name: "", market: "EG", dialect: "egyptian", styles: [], colors: [], timezone: "Africa/Cairo" };
 
 export default function BriefForm({ initial, submitLabel, busy, onSubmit }: {
   initial: Brief; submitLabel: string; busy: boolean; onSubmit: (b: Brief) => void;
 }) {
   const [b, setB] = useState<Brief>(initial);
+  const [verticals, setVerticals] = useState<Vertical[]>([]);
+  useEffect(() => { api<Vertical[]>("/api/verticals").then(setVerticals).catch(() => {}); }, []);
   const toggle = (key: "styles" | "colors", v: string, max: number) =>
     setB({ ...b, [key]: b[key].includes(v) ? b[key].filter((x) => x !== v) : [...b[key], v].slice(-max) });
 
   return (
     <form className="panel" onSubmit={(e) => { e.preventDefault(); onSubmit(b); }}>
+      <div className="f" role="group" aria-label="نوع البيزنس"><span>نوع البيزنس</span>
+        <div className="verticals">
+          {[...verticals, { id: "other", label: "مجال تاني", icon: "hex", pitch: "باقي أنواع البيزنس" }].map((v) => (
+            <button key={v.id} type="button" className="vcard" aria-pressed={(b.vertical || "") === v.id} onClick={() => setB({ ...b, vertical: v.id })}>
+              <span className="vi"><svg width="22" height="22" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[v.icon] || ICONS.spark} /></svg></span>
+              <b>{v.label}</b><span className="small muted">{v.pitch}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="f" htmlFor="idea">فكرة المشروع
         <textarea id="idea" rows={3} required minLength={10} value={b.idea} onChange={(e) => setB({ ...b, idea: e.target.value })}
           placeholder="مثلاً: محل حلويات شرقية أونلاين في القاهرة، بيبيع علب هدايا للمناسبات" />
@@ -51,7 +64,7 @@ export default function BriefForm({ initial, submitLabel, busy, onSubmit }: {
           </button>
         ))}</div>
       </div>
-      <div className="row"><button className="btn primary" type="submit" disabled={busy || b.idea.trim().length < 10}>{submitLabel}</button></div>
+      <div className="row"><button className="btn primary" type="submit" disabled={busy || b.idea.trim().length < 10 || !b.vertical}>{submitLabel}</button></div>
     </form>
   );
 }

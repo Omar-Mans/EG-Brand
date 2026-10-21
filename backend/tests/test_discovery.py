@@ -153,3 +153,28 @@ def test_cron_tick_needs_secret(client, monkeypatch):
     assert client.post("/api/cron/tick", headers={"X-Cron-Secret": "nope"}).status_code == 403
     assert client.post("/api/cron/tick", headers={"X-Cron-Secret": "s3cret"}).json() == {"jobs": 0, "posts": 0}
     assert "stock" in client.get("/api/health").json()
+
+
+def test_vertical_pack_adds_questions_and_playbook(client):
+    h = register(client)
+    assert {v["id"] for v in client.get("/api/verticals").json()} >= {"cars", "restaurants", "clinics", "creators"}
+    secs = client.get("/api/discovery/questions?vertical=cars").json()["sections"]
+    assert secs[1]["id"] == "vertical" and any(q["id"] == "v_finance" for q in secs[1]["questions"])
+    assert all(s["id"] != "vertical" for s in client.get("/api/discovery/questions").json()["sections"])
+
+    r = client.post("/api/brands", headers=h, json={"idea": "معرض سيارات مستعملة في جدة", "market": "SA", "dialect": "saudi", "vertical": "cars"})
+    bid = r.json()["id"]
+    assert r.json()["brief"]["vertical"] == "cars"
+    bad = client.post("/api/brands", headers=h, json={"idea": "مشروع تاني خالص للتجربة", "vertical": "spaceships"}).json()
+    assert bad["brief"]["vertical"] == "other"
+
+    saved = client.put(f"/api/brands/{bid}/discovery", headers=h,
+                       json={"answers": {**ANSWERS, "v_finance": "الراجحي، قسط من 1,200", "v_unknown": "x"}}).json()["discovery"]["answers"]
+    assert saved["v_finance"].startswith("الراجحي") and "v_unknown" not in saved
+
+    from app.ai import services
+    from app.db import SessionLocal
+    from app.models import Brand
+    with SessionLocal() as db:
+        ctx = services.brand_context(db.get(Brand, bid))
+    assert "الراجحي" in ctx and "Industry playbook" in ctx and "اليوم الوطني" in ctx  # Saudi seasons for a Saudi brand

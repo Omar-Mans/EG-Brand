@@ -37,7 +37,7 @@ export default function StrategyPage() {
 
   const pal = brand.dna ? palette(brand.dna) : null;
   const colors = pal ? [pal.primary, pal.accent, pal.secondary, "#A9A7BC"] : ["#F2B640", "#5BC08A", "#E8A33D", "#A9A7BC"];
-  const money = (n: number) => `${n.toLocaleString("ar-EG")} ${st.currency}`;
+  const money = (n: number) => `${n.toLocaleString("en-US")} ${st.currency}`;
 
   async function makeContent() {
     setBusy("بنجهز محتوى الشهر الجاي على أساس الاستراتيجية…"); setError("");

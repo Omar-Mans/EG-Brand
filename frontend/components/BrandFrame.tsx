@@ -26,7 +26,14 @@ export default function BrandFrame({ children }: { children: React.ReactNode }) 
   useEffect(() => { reload(); }, [reload]);
 
   if (error) return <p className="err">{error}</p>;
-  if (!brand) return <p className="muted">بنحمّل البراند…</p>;
+  if (!brand) {
+    return (
+      <div style={{ display: "grid", gap: 16 }} aria-busy="true" aria-label="بنحمّل البراند">
+        <div className="skeleton" style={{ height: 40, width: "40%" }} /><div className="skeleton" style={{ height: 44 }} />
+        <div className="skeleton" style={{ height: 260 }} />
+      </div>
+    );
+  }
 
   const tabs = [
     ["/discovery", "الدراسة"],

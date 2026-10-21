@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import { api, ApiError, getToken, setToken } from "@/lib/api";
 import type { Me } from "@/lib/types";
+import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 
 const MeCtx = createContext<Me | null>(null);
 export const useMe = () => useContext(MeCtx);
@@ -35,7 +37,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div className="wrap" style={{ padding: 24 }}>
         {error
           ? <div className="empty"><p className="err">{error}</p><button className="btn" type="button" onClick={() => window.location.reload()}>جرّب تاني</button></div>
-          : <p className="muted">بنحمّل…</p>}
+          : <div style={{ display: "grid", gap: 16 }} aria-busy="true" aria-label="بنحمّل"><div className="skeleton" style={{ height: 48 }} /><div className="skeleton" style={{ height: 180 }} /><div className="skeleton" style={{ height: 180 }} /></div>}
       </div>
     );
   }
@@ -49,7 +51,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <MeCtx.Provider value={me}>
       <div className="wrap">
         <header className="top">
-          <Link href="/brands" className="mark">EG <b>Brand</b></Link>
+          <Link href="/brands" aria-label="EG Brand" style={{ textDecoration: "none" }}><Logo size={30} /></Link>
           <nav className="nav">
             {nav.map(([href, label]) => (
               <Link key={href} href={href} className={path.startsWith(href) ? "on" : ""}>{label}</Link>
@@ -62,6 +64,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </span>
           )}
           <span className="small muted">{me.company.name}</span>
+          <ThemeToggle />
           <button className="btn sm" type="button" onClick={() => { setToken(null); router.replace("/login"); }}>خروج</button>
         </header>
         <main>{children}</main>

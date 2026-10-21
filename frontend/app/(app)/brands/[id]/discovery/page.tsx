@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useBrand } from "@/components/BrandFrame";
 import { api, waitJob } from "@/lib/api";
+import { VERTICAL_SECTOR } from "@/lib/catalog";
 import type { Answers, Brand, Followup, Job, Question, Section } from "@/lib/types";
 
 function Field({ q, value, onChange }: { q: Question; value: Answers[string] | undefined; onChange: (v: Answers[string]) => void }) {
@@ -43,7 +44,14 @@ export default function DiscoveryPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => { api<{ sections: Section[] }>("/api/discovery/questions").then((r) => setSections(r.sections)).catch((e) => setError(e.message)); }, []);
+  const vertical = brand.brief.vertical || "";
+  useEffect(() => {
+    api<{ sections: Section[] }>(`/api/discovery/questions${vertical ? `?vertical=${vertical}` : ""}`).then((r) => setSections(r.sections)).catch((e) => setError(e.message));
+  }, [vertical]);
+  useEffect(() => { // the business type already tells us the sector
+    const sector = VERTICAL_SECTOR[vertical];
+    if (sector) setAnswers((a) => (a.sector ? a : { ...a, sector }));
+  }, [vertical]);
   if (!sections) return <p className="muted">{error || "بنحمّل الأسئلة…"}</p>;
 
   const last = sections.length; // the step after the sections holds the AI follow-up questions

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, setToken } from "@/lib/api";
+import Logo from "./Logo";
 
 export default function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
   return (
     <div className="wrap">
       <form className="panel auth" onSubmit={submit}>
-        <p className="mark">EG <b>Brand</b></p>
+        <Link href="/" aria-label="EG Brand" style={{ textDecoration: "none" }}><Logo size={36} /></Link>
         <h2>{mode === "login" ? "تسجيل الدخول" : "حساب جديد لشركتك"}</h2>
         {mode === "register" && (
           <>

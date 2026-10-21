@@ -62,7 +62,7 @@ export default function IdentityPage() {
           <p className="note">أحسن نتيجة: <Link href={`/brands/${brand.id}/discovery`}>جاوب على أسئلة الدراسة</Link> الأول، والهوية هتتبني على الاستراتيجية. أو ولّدها على طول من الوصف.</p>
         )}
         {!d && brand.strategy && <p className="muted">لسه مفيش هوية للبراند ده. هتتبني على أساس الاستراتيجية.</p>}
-        <BriefForm initial={brand.brief} submitLabel="ولّد هوية البراند" busy={busy} onSubmit={regenerate} />
+        <BriefForm initial={{ ...brand.brief, vertical: brand.brief.vertical || "other" }} submitLabel="ولّد هوية البراند" busy={busy} onSubmit={regenerate} />
         {!d && (status || error) && <p className={`status ${error ? "err" : ""}`}>{error || status}</p>}
       </>
     );
