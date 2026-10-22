@@ -170,8 +170,8 @@ def generate_followups(db: Session, brand: Brand) -> list[dict]:
         d["website_url"] = site
     brief = brand.brief or {}
     data = complete_json(db, prompts.discovery_followups(brief, disc.as_text({**d, "followups": []})),
-                         company_id=brand.company_id, brand_id=brand.id, feature="discovery", tier="fast",
-                         mock=lambda: mock.followups(), max_tokens=1200)
+                         company_id=brand.company_id, brand_id=brand.id, feature="discovery", tier="quality",
+                         mock=lambda: mock.followups(), max_tokens=2500)  # the quality model reasons before answering
     items = data if isinstance(data, list) else (data.get("questions") if isinstance(data, dict) else None) or []
     old = {f["question"]: f.get("answer", "") for f in d.get("followups") or []}
     qs = [{"question": str(x["question"]).strip()[:300], "why": str(x.get("why") or "")[:300],

@@ -4,7 +4,20 @@ import json
 
 from .catalog import DIALECTS, FONTS_AR, FONTS_EN, ICONS, LAYOUTS, MARKETS, MONTHS_AR
 
-PROMPT_VERSION = "2026-10-c"
+PROMPT_VERSION = "2026-10-d"
+
+
+DIALECT_STYLE = {
+    "egyptian": "Egyptian colloquial exactly as people talk in Cairo (use words like إيه، إزاي، ليه، فين، عايز، بتاعك، دلوقتي، كده، مش). "
+                "Never use Modern Standard words like ماذا، كيف، هل، لماذا، حالياً، يشهد، لديك، الذي.",
+    "saudi": "Saudi white dialect exactly as people talk in Riyadh (use words like وش، ليش، وين، تبي، حقك، الحين، كذا، مو، زين). "
+             "Never use Modern Standard words like ماذا، هل، لماذا، حالياً، لديك، الذي.",
+    "msa": "simple, warm Modern Standard Arabic.",
+}
+
+
+def dialect_rule(dialect: str) -> str:
+    return DIALECT_STYLE.get(dialect, DIALECT_STYLE["msa"])
 
 
 def _ctx(context: str) -> str:
@@ -120,13 +133,16 @@ Rules: split covers only allowed platforms and pct sums to 100; exactly 3 ads; d
 
 def discovery_followups(brief: dict, discovery_text: str) -> str:
     return f"""You are a senior marketing strategist at an agency in {MARKETS.get(brief.get("market"), MARKETS["EG"])["label"]}.
-You are interviewing a new client before writing their marketing strategy. Here is what they told you:
+You are interviewing a new client before writing their marketing strategy. Here is everything they already told you:
 Business idea: {brief.get("idea", "")}
 {discovery_text}
+
 Ask exactly 4 short follow-up questions that you still need to build a strong, specific strategy for THIS sector and THIS business
-(for example for a car dealer: stock size, financing partners, warranty; for a restaurant: delivery apps, best dishes, busy hours).
-Do not repeat what they already answered. Write each question in simple Arabic, dialect: {DIALECTS.get(brief.get("dialect"), DIALECTS["msa"])}.
-Reply with ONLY a JSON array: [{{"question":"Arabic question","why":"one short Arabic sentence on why it matters"}}]"""
+(for example for a car dealer: stock size, financing partners, warranty; for a restaurant: delivery apps, best dishes, loyalty, peak hours).
+Before writing each question, check the answers above: if the client already answered it, even in other words (for example what content
+worked for them, their platforms, their budget, their slow hours), do NOT ask it. Ask about facts, numbers and assets you can use in content and ads.
+Write the questions and the "why" lines in {dialect_rule(brief.get("dialect", "msa"))} Keep each question under 15 words.
+Reply with ONLY a JSON array: [{{"question":"the question","why":"one short sentence on why it matters"}}]"""
 
 
 def strategy(brief: dict, discovery_text: str, currency: str, today: str) -> str:
@@ -166,8 +182,8 @@ def reel_script(brief: dict, dna: dict, post: dict, dialect: str, context: str =
     return f"""You are a senior short-form video creator writing an Instagram/TikTok reel for the Arabic brand "{s["name"].get("ar", "")}".
 Business: {brief.get("idea", "")}. Tone: {s["tone"]}. Don't: {"; ".join(s["dont"] or [])}.
 {_ctx(context)}The reel is about: {json.dumps(post, ensure_ascii=False)}
-The voice-over is read by a text-to-speech voice in this dialect: {DIALECTS.get(dialect, DIALECTS["msa"])}. Write the spoken lines exactly as people
-talk in that dialect, short and natural, with no emojis, hashtags, symbols or English words (write numbers as words if they are short).
+The voice-over is read aloud by a text-to-speech voice. Write the spoken lines and on-screen text in {dialect_rule(dialect)}
+Short and natural, with no emojis, hashtags, symbols or English words (write numbers as words if they are short).
 {footage}
 
 Structure: scene 1 is the hook (a question or a bold specific claim, understood in 2 seconds); the middle scenes show one benefit or proof each;
@@ -187,7 +203,7 @@ def talk_script(brief: dict, dna: dict, topic: str, own_script: str, seconds: in
             f"Write the script about: {topic or 'what makes this business worth choosing'}. About {words} words in total.")
     return f"""You write talking-head reel scripts for the owner of the Arabic brand "{s["name"].get("ar", "")}" to read to the phone camera from a teleprompter.
 Business: {brief.get("idea", "")}. Tone: {s["tone"]}. Don't: {"; ".join(s["dont"] or [])}.
-{_ctx(context)}Target length: {seconds} seconds spoken. Dialect: {DIALECTS.get(dialect, DIALECTS["msa"])}, written exactly as people speak it.
+{_ctx(context)}Target length: {seconds} seconds spoken. Write it in {dialect_rule(dialect)}
 {task}
 
 Rules: the first line is a hook that stops the scroll in 2 seconds (a question, a surprising fact the owner gave, or a common mistake);
