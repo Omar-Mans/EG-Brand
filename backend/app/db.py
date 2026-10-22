@@ -36,26 +36,37 @@ ADDED_COLUMNS = {
 }
 
 
-def ensure_columns() -> None:
-    insp = inspect(engine)
-    with engine.begin() as conn:
-        for table, cols in ADDED_COLUMNS.items():
-            if not insp.has_table(table):
+def ensure_columns(conn=None) -> None:
+    if conn is None:
+        with engine.begin() as c:
+            return ensure_columns(c)
+    insp = inspect(conn)
+    pg = conn.dialect.name == "postgresql"
+    for table, cols in ADDED_COLUMNS.items():
+        if not insp.has_table(table):
+            continue
+        have = {c["name"] for c in insp.get_columns(table)}
+        for name, ddl in cols.items():
+            if name in have:
                 continue
-            have = {c["name"] for c in insp.get_columns(table)}
-            for name, ddl in cols.items():
-                if name in have:
-                    continue
-                if engine.dialect.name != "postgresql":
-                    ddl = ddl.replace("TIMESTAMP WITH TIME ZONE", "DATETIME")
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            if pg:  # IF NOT EXISTS: safe even if another process added it a moment ago
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {ddl}"))
+            else:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl.replace('TIMESTAMP WITH TIME ZONE', 'DATETIME')}"))
+
+
+SCHEMA_LOCK = 774201  # any constant: Postgres advisory lock id for schema setup
 
 
 def init_db() -> None:
+    """The API and the worker start together; on Postgres they take turns so they never race on CREATE/ALTER."""
     from . import models  # noqa: F401  (register tables)
 
-    Base.metadata.create_all(engine)
-    ensure_columns()
+    with engine.begin() as conn:
+        if conn.dialect.name == "postgresql":
+            conn.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": SCHEMA_LOCK})
+        Base.metadata.create_all(conn)
+        ensure_columns(conn)
 
 
 def get_db() -> Iterator[Session]:
